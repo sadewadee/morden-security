@@ -1,0 +1,328 @@
+/* Morden Security Login Page Styles */
+
+/* Login Container */
+.login {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login #login {
+    width: 100%;
+    max-width: 400px;
+    padding: 0 20px;
+}
+
+/* Login Form */
+.login form {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(15px);
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    padding: 40px;
+    margin-bottom: 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.login form::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+}
+
+/* Form Fields */
+.login form .input,
+.login form input[type="text"],
+.login form input[type="password"],
+.login form input[type="email"] {
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 15px 18px;
+    font-size: 16px;
+    font-weight: 400;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: #fff;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.login form .input:focus,
+.login form input[type="text"]:focus,
+.login form input[type="password"]:focus,
+.login form input[type="email"]:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+    outline: none;
+    transform: translateY(-1px);
+}
+
+/* Labels */
+.login form label {
+    font-weight: 600;
+    color: #4a5568;
+    margin-bottom: 8px;
+    display: block;
+}
+
+/* Submit Button */
+.login form .button-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 10px;
+    padding: 15px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    text-shadow: none;
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    width: 100%;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.login form .button-primary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+}
+
+.login form .button-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+.login form .button-primary:hover::before {
+    left: 100%;
+}
+
+.login form .button-primary:active {
+    transform: translateY(0);
+}
+
+/* Remember Me */
+.login form .forgetmenot {
+    margin: 20px 0;
+}
+
+.login form .forgetmenot input[type="checkbox"] {
+    margin-right: 8px;
+    transform: scale(1.2);
+}
+
+.login form .forgetmenot label {
+    font-weight: 400;
+    color: #666;
+    cursor: pointer;
+}
+
+/* Navigation Links */
+.login #nav,
+.login #backtoblog {
+    text-align: center;
+    margin: 15px 0;
+}
+
+.login #nav a,
+.login #backtoblog a {
+    color: rgba(255, 255, 255, 0.9) !important;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    padding: 8px 16px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    display: inline-block;
+    margin: 5px;
+}
+
+.login #nav a:hover,
+.login #backtoblog a:hover {
+    color: #fff !important;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+/* Logo */
+.login h1 a {
+    background-size: contain !important;
+    background-position: center !important;
+    width: 280px !important;
+    height: 80px !important;
+    margin-bottom: 30px !important;
+    transition: all 0.3s ease;
+}
+
+.login h1 a:hover {
+    transform: scale(1.05);
+}
+
+/* Error Messages */
+.login .message,
+.login #login_error {
+    background: rgba(248, 215, 218, 0.95);
+    border: none;
+    border-left: 4px solid #dc3545;
+    border-radius: 8px;
+    padding: 15px 20px;
+    margin-bottom: 20px;
+    color: #721c24;
+    font-weight: 500;
+    backdrop-filter: blur(10px);
+}
+
+.login .message {
+    background: rgba(212, 237, 218, 0.95);
+    border-left-color: #28a745;
+    color: #155724;
+}
+
+/* Turnstile Widget */
+.login .cf-turnstile {
+    margin: 20px 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Loading Animation */
+.login form.loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.login form.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+}
+
+/* Security Footer */
+.ms-login-footer {
+    text-align: center;
+    margin-top: 30px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+}
+
+.ms-login-footer p {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+    margin: 0;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Responsive Design */
+@media (max-width: 480px) {
+    .login #login {
+        padding: 0 15px;
+    }
+
+    .login form {
+        padding: 25px 20px;
+        margin: 10px 0;
+    }
+
+    .login h1 a {
+        width: 240px !important;
+        height: 60px !important;
+    }
+
+    .login form .input,
+    .login form input[type="text"],
+    .login form input[type="password"],
+    .login form input[type="email"] {
+        padding: 12px 15px;
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+    .login form {
+        background: #fff;
+        border: 3px solid #000;
+    }
+
+    .login form .input,
+    .login form input[type="text"],
+    .login form input[type="password"],
+    .login form input[type="email"] {
+        border: 2px solid #000;
+        background: #fff;
+    }
+
+    .login form .button-primary {
+        background: #000;
+        color: #fff;
+        border: 2px solid #000;
+    }
+
+    .login #nav a,
+    .login #backtoblog a {
+        background: rgba(0, 0, 0, 0.8) !important;
+        color: #fff !important;
+        border: 1px solid #fff;
+    }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+    .login form,
+    .login form .input,
+    .login form .button-primary,
+    .login h1 a,
+    .login #nav a,
+    .login #backtoblog a {
+        transition: none;
+        animation: none;
+    }
+
+    .login form .button-primary::before {
+        display: none;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .login {
+        background: #fff !important;
+    }
+
+    .login form {
+        background: #fff !important;
+        box-shadow: none !important;
+        border: 1px solid #000 !important;
+    }
+
+    .ms-login-footer {
+        background: transparent !important;
+    }
+}

@@ -1,0 +1,382 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Morden Security 1.0.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-06-07 21:31+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: includes/class-ms-security.php:156
+msgid "Too many failed login attempts. Please try again in %d minutes."
+msgstr ""
+
+#: includes/class-ms-security.php:233
+msgid "Please complete the security check."
+msgstr ""
+
+#: includes/class-ms-security.php:250
+msgid "Security verification failed. Please try again."
+msgstr ""
+
+#: includes/class-ms-security.php:260
+msgid "Security verification failed. Please try again."
+msgstr ""
+
+#: includes/class-ms-security.php:309
+msgid "Malicious request detected."
+msgstr ""
+
+#: includes/class-ms-security.php:310
+msgid "Security Alert"
+msgstr ""
+
+#: includes/class-ms-security.php:319
+msgid "Suspicious activity detected."
+msgstr ""
+
+#: includes/class-ms-security.php:320
+msgid "Security Alert"
+msgstr ""
+
+#: includes/class-ms-security.php:334
+msgid "File type not allowed for security reasons."
+msgstr ""
+
+#: includes/class-ms-security.php:340
+msgid "File contains suspicious code and cannot be uploaded."
+msgstr ""
+
+#: includes/class-ms-security.php:364
+msgid "Suspicious data detected in request."
+msgstr ""
+
+#: includes/class-ms-security.php:365
+msgid "Security Alert"
+msgstr ""
+
+#: includes/class-ms-core.php:25
+msgid "Your IP address has been blocked due to security reasons."
+msgstr ""
+
+#: includes/class-ms-core.php:26
+msgid "Access Denied"
+msgstr ""
+
+#: includes/class-ms-customizer.php:65
+msgid "Secured by %s"
+msgstr ""
+
+#: includes/class-ms-customizer.php:71
+msgid "Morden Security v%s"
+msgstr ""
+
+#: includes/class-ms-customizer.php:119
+msgid "Secured by Morden Security"
+msgstr ""
+
+#: includes/class-ms-customizer.php:127
+msgid "Protected by %s"
+msgstr ""
+
+#: includes/class-ms-customizer.php:219
+msgid "Morden Security Status"
+msgstr ""
+
+#: includes/class-ms-customizer.php:235
+msgid "Login Attempts (24h)"
+msgstr ""
+
+#: includes/class-ms-customizer.php:240
+msgid "Security Events (24h)"
+msgstr ""
+
+#: includes/class-ms-customizer.php:245
+msgid "Blocked IPs"
+msgstr ""
+
+#: includes/class-ms-customizer.php:250
+msgid "Security Settings"
+msgstr ""
+
+#: includes/class-ms-customizer.php:253
+msgid "View Logs"
+msgstr ""
+
+#: includes/class-ms-admin.php:39
+msgid "Morden Security"
+msgstr ""
+
+#: includes/class-ms-admin.php:46
+msgid "Security Logs"
+msgstr ""
+
+#: includes/class-ms-admin.php:54
+msgid "Blocked IPs"
+msgstr ""
+
+#: includes/class-ms-admin.php:96
+msgid "Date/Time"
+msgstr ""
+
+#: includes/class-ms-admin.php:97
+msgid "Event Type"
+msgstr ""
+
+#: includes/class-ms-admin.php:98
+msgid "IP Address"
+msgstr ""
+
+#: includes/class-ms-admin.php:99
+msgid "Description"
+msgstr ""
+
+#: includes/class-ms-admin.php:100
+msgid "Severity"
+msgstr ""
+
+#: includes/class-ms-admin.php:119
+msgid "Blocked IP Addresses"
+msgstr ""
+
+#: includes/class-ms-admin.php:124
+msgid "Reason"
+msgstr ""
+
+#: includes/class-ms-admin.php:125
+msgid "Blocked Until"
+msgstr ""
+
+#: includes/class-ms-admin.php:126
+msgid "Permanent"
+msgstr ""
+
+#: includes/class-ms-admin.php:127
+msgid "Actions"
+msgstr ""
+
+#: includes/class-ms-admin.php:133
+msgid "Permanent"
+msgstr ""
+
+#: includes/class-ms-admin.php:134
+msgid "Yes"
+msgstr ""
+
+#: includes/class-ms-admin.php:134
+msgid "No"
+msgstr ""
+
+#: includes/class-ms-admin.php:135
+msgid "Unblock"
+msgstr ""
+
+#: includes/class-ms-admin.php:174
+msgid "IP address unblocked successfully."
+msgstr ""
+
+#: includes/class-ms-admin.php:176
+msgid "Failed to unblock IP address."
+msgstr ""
+
+#: admin/admin-page.php:11
+msgid "Morden Security Settings"
+msgstr ""
+
+#: admin/admin-page.php:15
+msgid "Login Attempts (24h)"
+msgstr ""
+
+#: admin/admin-page.php:19
+msgid "Blocked IPs"
+msgstr ""
+
+#: admin/admin-page.php:23
+msgid "Security Events (24h)"
+msgstr ""
+
+#: admin/admin-page.php:32
+msgid "Security"
+msgstr ""
+
+#: admin/admin-page.php:33
+msgid "Login Protection"
+msgstr ""
+
+#: admin/admin-page.php:34
+msgid "Firewall"
+msgstr ""
+
+#: admin/admin-page.php:35
+msgid "Customization"
+msgstr ""
+
+#: admin/admin-page.php:36
+msgid "Cloudflare Turnstile"
+msgstr ""
+
+#: admin/admin-page.php:40
+msgid "Basic Security Settings"
+msgstr ""
+
+#: admin/admin-page.php:43
+msgid "Disable File Editor"
+msgstr ""
+
+#: admin/admin-page.php:47
+msgid "Disable WordPress file editor for themes and plugins"
+msgstr ""
+
+#: admin/admin-page.php:52
+msgid "Force SSL"
+msgstr ""
+
+#: admin/admin-page.php:56
+msgid "Force HTTPS connections on frontend"
+msgstr ""
+
+#: admin/admin-page.php:61
+msgid "Disable XML-RPC"
+msgstr ""
+
+#: admin/admin-page.php:65
+msgid "Disable XML-RPC to prevent brute force attacks"
+msgstr ""
+
+#: admin/admin-page.php:70
+msgid "Security Headers"
+msgstr ""
+
+#: admin/admin-page.php:74
+msgid "Add security headers to HTTP responses"
+msgstr ""
+
+#: admin/admin-page.php:81
+msgid "Login Protection Settings"
+msgstr ""
+
+#: admin/admin-page.php:84
+msgid "Limit Login Attempts"
+msgstr ""
+
+#: admin/admin-page.php:88
+msgid "Enable login attempt limiting"
+msgstr ""
+
+#: admin/admin-page.php:93
+msgid "Max Login Attempts"
+msgstr ""
+
+#: admin/admin-page.php:96
+msgid "Maximum failed login attempts before lockout"
+msgstr ""
+
+#: admin/admin-page.php:101
+msgid "Lockout Duration"
+msgstr ""
+
+#: admin/admin-page.php:104
+msgid "Lockout duration in seconds (default: 1800 = 30 minutes)"
+msgstr ""
+
+#: admin/admin-page.php:110
+msgid "Firewall Settings"
+msgstr ""
+
+#: admin/admin-page.php:113
+msgid "Enable Firewall"
+msgstr ""
+
+#: admin/admin-page.php:117
+msgid "Enable basic firewall protection"
+msgstr ""
+
+#: admin/admin-page.php:122
+msgid "Block Suspicious Requests"
+msgstr ""
+
+#: admin/admin-page.php:126
+msgid "Block requests with suspicious patterns"
+msgstr ""
+
+#: admin/admin-page.php:131
+msgid "Scan Uploads"
+msgstr ""
+
+#: admin/admin-page.php:135
+msgid "Scan uploaded files for malicious content"
+msgstr ""
+
+#: admin/admin-page.php:141
+msgid "WordPress Customization"
+msgstr ""
+
+#: admin/admin-page.php:144
+msgid "Hide WordPress Version"
+msgstr ""
+
+#: admin/admin-page.php:148
+msgid "Hide WordPress version from HTML source"
+msgstr ""
+
+#: admin/admin-page.php:153
+msgid "Remove WordPress Credit"
+msgstr ""
+
+#: admin/admin-page.php:157
+msgid "Remove WordPress credit from admin footer"
+msgstr ""
+
+#: admin/admin-page.php:162
+msgid "Hide WordPress Logo"
+msgstr ""
+
+#: admin/admin-page.php:166
+msgid "Hide WordPress logo from admin bar"
+msgstr ""
+
+#: admin/admin-page.php:171
+msgid "Hide Admin Bar"
+msgstr ""
+
+#: admin/admin-page.php:175
+msgid "Hide admin bar for non-administrator users"
+msgstr ""
+
+#: admin/admin-page.php:181
+msgid "Cloudflare Turnstile Settings"
+msgstr ""
+
+#: admin/admin-page.php:184
+msgid "Enable Turnstile"
+msgstr ""
+
+#: admin/admin-page.php:188
+msgid "Enable Cloudflare Turnstile on login and registration forms"
+msgstr ""
+
+#: admin/admin-page.php:193
+msgid "Site Key"
+msgstr ""
+
+#: admin/admin-page.php:196
+msgid "Your Cloudflare Turnstile site key"
+msgstr ""
+
+#: admin/admin-page.php:201
+msgid "Secret Key"
+msgstr ""
+
+#: admin/admin-page.php:204
+msgid "Your Cloudflare Turnstile secret key"
+msgstr ""
