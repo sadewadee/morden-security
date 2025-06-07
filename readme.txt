@@ -1,11 +1,10 @@
 === Morden Security ===
 Contributors: Mordenhost Team
-Donate link: https://mordenhost.com/contact
 Tags: security, firewall, brute force, login protection, security headers, cloudflare turnstile, malware protection, ip blocking, wordpress security
 Requires at least: 6.1
 Tested up to: 6.7.2
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.0-beta
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -185,8 +184,8 @@ Yes, Morden Security follows GDPR guidelines. Personal data (like IP addresses) 
 
 == Changelog ==
 
-= 1.0.0 - 2025-06-07 =
-**Initial Release**
+= 1.0-beta - 2025-06-08 =
+**Initial Beta Release**
 
 **Security Features:**
 * Core WordPress security hardening
@@ -218,10 +217,12 @@ Yes, Morden Security follows GDPR guidelines. Personal data (like IP addresses) 
 * Security dashboard widget
 
 **Monitoring & Logging:**
-* Comprehensive security event logging
+* Comprehensive security event logging with country and path tracking
 * IP blocking management interface
 * Security statistics and reporting
 * Automated cleanup routines
+* Configurable log retention (1-365 days)
+* Maximum log limits (100-10000 entries)
 
 **Developer Features:**
 * WordPress coding standards compliance
@@ -231,8 +232,8 @@ Yes, Morden Security follows GDPR guidelines. Personal data (like IP addresses) 
 
 == Upgrade Notice ==
 
-= 1.0.0 =
-Initial release of Morden Security. Install now to secure your WordPress website with comprehensive protection features including firewall, brute force protection, and advanced security monitoring.
+= 1.0-beta =
+Initial beta release of Morden Security. Install now to secure your WordPress website with comprehensive protection features including firewall, brute force protection, and advanced security monitoring.
 
 == Privacy Policy ==
 
@@ -245,7 +246,7 @@ Morden Security is committed to protecting your privacy and follows these princi
 
 **Data Storage:**
 * All security data is stored in your WordPress database
-* Automatic cleanup removes old data after 90 days
+* Automatic cleanup removes old data after configurable retention period
 * Data is encrypted where possible
 
 **Data Usage:**
@@ -255,21 +256,19 @@ Morden Security is committed to protecting your privacy and follows these princi
 
 **Third-Party Services:**
 * Cloudflare Turnstile (optional) - subject to Cloudflare's privacy policy
-* No other external services are used
+* IP geolocation service (optional) - for country detection in logs
 
 == Support ==
 
-**Documentation:**
-Visit our comprehensive documentation at: https://mordenhost.com/docs/morden-security
+**GitHub Repository:** https://github.com/sadewadee/morden-security
 
-**Support Forum:**
-Get help from the community: https://wordpress.org/support/plugin/morden-security
+**Support & Bug Reports:** https://github.com/sadewadee/morden-security/issues
 
-**Premium Support:**
-For priority support and advanced features: https://mordenhost.com/support
+**Contact:** support@mordenhost.com
 
-**Bug Reports:**
-Report bugs on GitHub: https://github.com/sadewadee/morden-security
+**Documentation:** Visit our comprehensive documentation at: https://mordenhost.com/docs/morden-security
+
+**Premium Support:** For priority support and advanced features: https://mordenhost.com/support
 
 == Contributing ==
 
