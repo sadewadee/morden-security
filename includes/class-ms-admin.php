@@ -85,8 +85,15 @@ class MS_Admin {
         $sanitized['turnstile_site_key'] = sanitize_text_field($input['turnstile_site_key'] ?? '');
         $sanitized['turnstile_secret_key'] = sanitize_text_field($input['turnstile_secret_key'] ?? '');
 
+        // New scan settings
+        $sanitized['custom_safe_folders'] = sanitize_textarea_field($input['custom_safe_folders'] ?? '');
+        $sanitized['scan_sensitivity'] = in_array($input['scan_sensitivity'] ?? 'medium', array('low', 'medium', 'high'))
+            ? $input['scan_sensitivity'] : 'medium';
+        $sanitized['max_scan_file_size'] = min(absint($input['max_scan_file_size'] ?? 10), 100);
+
         return $sanitized;
     }
+
 
     public function ms_enqueue_admin_scripts($hook) {
         // Only load on Morden Security pages
@@ -414,4 +421,38 @@ class MS_Admin {
             wp_send_json_error(__('Failed to unblock IP address.', 'morden-security'));
         }
     }
+
+    public function ms_manual_scan() {
+        check_ajax_referer('ms_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+            return;
+        }
+
+        try {
+            // Run the security scan
+            $this->core->ms_run_security_scan();
+
+            // Get scan results
+            global $wpdb;
+            $log_table = $wpdb->prefix . 'ms_security_log';
+
+            $recent_events = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM $log_table WHERE created_at > %s AND event_type = 'suspicious_file'",
+                date('Y-m-d H:i:s', strtotime('-1 minute'))
+            ));
+
+            $message = sprintf(
+                __('Manual scan completed successfully. %d suspicious files detected.', 'morden-security'),
+                $recent_events
+            );
+
+            wp_send_json_success(array('message' => $message));
+
+        } catch (Exception $e) {
+            wp_send_json_error('Scan failed: ' . $e->getMessage());
+        }
+    }
+
 }

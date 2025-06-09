@@ -3,7 +3,7 @@
  * Plugin Name: Morden Security
  * Plugin URI: https://mordenhost.com/morden-security/
  * Description: Advanced WordPress security plugin with comprehensive protection features including brute force protection, security headers, login customization, and Cloudflare Turnstile integration.
- * Version: 1.0-beta
+ * Version: 1.0.1-beta
  * Author: Morden Security Team
  * Author URI: https://mordenhost.com
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('MS_VERSION', '1.0.0');
+define('MS_VERSION', '1.0.1-beta');
 define('MS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('MS_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('MS_PLUGIN_BASENAME', plugin_basename(__FILE__));

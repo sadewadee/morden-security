@@ -34,6 +34,7 @@ $options = get_option('ms_settings', array());
                 <a href="#security" class="nav-tab nav-tab-active"><?php _e('Security', 'morden-security'); ?></a>
                 <a href="#login" class="nav-tab"><?php _e('Login Protection', 'morden-security'); ?></a>
                 <a href="#firewall" class="nav-tab"><?php _e('Firewall', 'morden-security'); ?></a>
+                <a href="#scan-settings" class="nav-tab"><?php _e('File Scanning', 'morden-security'); ?></a>
                 <a href="#logs" class="nav-tab"><?php _e('Log Management', 'morden-security'); ?></a>
                 <a href="#customization" class="nav-tab"><?php _e('Customization', 'morden-security'); ?></a>
                 <a href="#turnstile" class="nav-tab"><?php _e('Cloudflare Turnstile', 'morden-security'); ?></a>
@@ -138,6 +139,63 @@ $options = get_option('ms_settings', array());
                                 <input type="checkbox" name="ms_settings[scan_uploads]" value="1" <?php checked(isset($options['scan_uploads']) ? $options['scan_uploads'] : 1, 1); ?> />
                                 <?php _e('Scan uploaded files for malicious content', 'morden-security'); ?>
                             </label>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <div id="scan-settings" class="tab-content">
+                <h2><?php _e('File Scanning Settings', 'morden-security'); ?></h2>
+                <p class="description" style="margin-bottom: 20px;">
+                    <?php _e('These settings control the automatic file scanning that runs in the background. Scanning helps detect suspicious files that may have been uploaded to your website.', 'morden-security'); ?>
+                </p>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><?php _e('Scan Sensitivity', 'morden-security'); ?></th>
+                        <td>
+                            <select name="ms_settings[scan_sensitivity]">
+                                <option value="low" <?php selected($options['scan_sensitivity'] ?? 'medium', 'low'); ?>>
+                                    <?php _e('Low (Less false positives)', 'morden-security'); ?>
+                                </option>
+                                <option value="medium" <?php selected($options['scan_sensitivity'] ?? 'medium', 'medium'); ?>>
+                                    <?php _e('Medium (Balanced)', 'morden-security'); ?>
+                                </option>
+                                <option value="high" <?php selected($options['scan_sensitivity'] ?? 'medium', 'high'); ?>>
+                                    <?php _e('High (More thorough)', 'morden-security'); ?>
+                                </option>
+                            </select>
+                            <p class="description"><?php _e('Higher sensitivity may result in more false positives but better detection', 'morden-security'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('Max File Size to Scan', 'morden-security'); ?></th>
+                        <td>
+                            <input type="number" name="ms_settings[max_scan_file_size]"
+                                   value="<?php echo esc_attr($options['max_scan_file_size'] ?? 10); ?>"
+                                   min="1" max="100" /> MB
+                            <p class="description"><?php _e('Files larger than this size will be skipped during scanning', 'morden-security'); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('Exclude Folders', 'morden-security'); ?></th>
+                        <td>
+                            <textarea name="ms_settings[custom_safe_folders]" rows="10" cols="50" class="large-text" placeholder="/my-plugin/&#10;/my-theme/&#10;/custom-folder/"><?php
+                                echo esc_textarea($options['custom_safe_folders'] ?? '');
+                            ?></textarea>
+                            <p class="description">
+                                <?php _e('Enter folder paths to exclude from scanning, one per line. Example: /forminator/', 'morden-security'); ?><br>
+                                <?php _e('Paths are relative to wp-content/uploads/', 'morden-security'); ?><br>
+                                <strong><?php _e('Default excluded folders:', 'morden-security'); ?></strong>
+                                /forminator/, /contact-form-7/, /wpforms/, /elementor/, /wp-rocket/, /cache/, /backups/, /themes/
+                            </p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><?php _e('Automatic Scanning', 'morden-security'); ?></th>
+                        <td>
+                            <p class="description">
+                                <?php _e('File scanning runs automatically twice daily as part of the security maintenance routine. Suspicious files will be logged in the Security Logs section.', 'morden-security'); ?>
+                            </p>
                         </td>
                     </tr>
                 </table>
