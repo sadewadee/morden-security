@@ -25,19 +25,12 @@ class MS_Firewall {
     }
 
     private function init_firewall() {
-        $firewall_mode = $this->core->ms_get_option('firewall_mode', '6g');
-
-        if ($firewall_mode === '6g' && $this->core->ms_get_option('enable_6g_firewall', 1)) {
-            add_action('init', array($this, 'apply_6g_firewall'), 1);
-        } elseif ($firewall_mode === 'basic' && $this->core->ms_get_option('enable_basic_firewall', 1)) {
-            add_action('init', array($this, 'basic_firewall_check'), 3);
+        if ($this->core->ms_get_option('enable_firewall', 1)) {
+            add_action('init', array($this, 'apply_firewall_protection'), 1);
         }
 
-        // Track user logins for whitelist
         add_action('wp_login', array($this, 'track_user_login'), 10, 2);
         add_action('wp_logout', array($this, 'track_user_logout'));
-
-        // Periodic whitelist refresh
         add_action('init', array($this, 'refresh_whitelist'), 5);
     }
 
@@ -57,7 +50,6 @@ class MS_Firewall {
     }
 
     public function refresh_whitelist() {
-        // Only refresh every 5 minutes to avoid performance issues
         $last_refresh = get_transient('ms_whitelist_last_refresh');
         if ($last_refresh && (time() - $last_refresh) < 300) {
             return;
@@ -70,12 +62,10 @@ class MS_Firewall {
     private function get_server_ips() {
         $server_ips = array();
 
-        // Get server IP address
         if (isset($_SERVER['SERVER_ADDR']) && !empty($_SERVER['SERVER_ADDR'])) {
             $server_ips[] = $_SERVER['SERVER_ADDR'];
         }
 
-        // Get server hostname IP
         $server_name = $_SERVER['SERVER_NAME'] ?? $_SERVER['HTTP_HOST'] ?? '';
         if (!empty($server_name)) {
             $server_ip = gethostbyname($server_name);
@@ -84,21 +74,15 @@ class MS_Firewall {
             }
         }
 
-        // Common localhost and private IPs
         $localhost_ips = array(
             '127.0.0.1', '::1', 'localhost',
             '192.168.1.1', '10.0.0.1', '172.16.0.1'
         );
         $server_ips = array_merge($server_ips, $localhost_ips);
 
-        // Get load balancer IPs if behind proxy
         $proxy_headers = array(
-            'HTTP_X_FORWARDED_FOR',
-            'HTTP_X_REAL_IP',
-            'HTTP_CLIENT_IP',
-            'HTTP_X_CLUSTER_CLIENT_IP',
-            'HTTP_FORWARDED_FOR',
-            'HTTP_FORWARDED'
+            'HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'HTTP_CLIENT_IP',
+            'HTTP_X_CLUSTER_CLIENT_IP', 'HTTP_FORWARDED_FOR', 'HTTP_FORWARDED'
         );
 
         foreach ($proxy_headers as $header) {
@@ -120,7 +104,6 @@ class MS_Firewall {
         $hosting_ips = array();
         $current_ip = $this->core->ms_get_user_ip();
 
-        // CloudFlare IP ranges
         $cloudflare_ranges = array(
             '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22',
             '103.31.4.0/22', '141.101.64.0/18', '108.162.192.0/18',
@@ -129,7 +112,6 @@ class MS_Firewall {
             '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22'
         );
 
-        // Check if current IP is from CloudFlare
         foreach ($cloudflare_ranges as $range) {
             if ($this->ip_in_range($current_ip, $range)) {
                 $hosting_ips[] = $current_ip;
@@ -137,7 +119,6 @@ class MS_Firewall {
             }
         }
 
-        // Common hosting provider ranges
         $hosting_ranges = array(
             '192.168.0.0/16', '10.0.0.0/8', '172.16.0.0/12'
         );
@@ -155,13 +136,11 @@ class MS_Firewall {
     private function get_logged_in_user_ips() {
         $logged_in_ips = array();
 
-        // Get cached logged in users
         $logged_in_users = get_transient('ms_logged_in_users');
         if (!$logged_in_users) {
             $logged_in_users = array();
         }
 
-        // Add current user IP if logged in
         if (is_user_logged_in()) {
             $current_ip = $this->core->ms_get_user_ip();
             $user_id = get_current_user_id();
@@ -176,9 +155,8 @@ class MS_Firewall {
             $logged_in_ips[] = $current_ip;
         }
 
-        // Clean old entries and collect active IPs
         $current_time = time();
-        $session_timeout = $this->core->ms_get_option('whitelist_session_timeout', 3600); // 1 hour default
+        $session_timeout = $this->core->ms_get_option('whitelist_session_timeout', 3600);
 
         foreach ($logged_in_users as $user_id => $data) {
             if (($current_time - $data['timestamp']) < $session_timeout) {
@@ -188,7 +166,6 @@ class MS_Firewall {
             }
         }
 
-        // Update transient
         set_transient('ms_logged_in_users', $logged_in_users, $session_timeout);
 
         return array_unique($logged_in_ips);
@@ -197,7 +174,6 @@ class MS_Firewall {
     private function get_admin_ips() {
         $admin_ips = array();
 
-        // Get admin IPs from settings
         $admin_ip_list = $this->core->ms_get_option('admin_whitelist_ips', '');
         if (!empty($admin_ip_list)) {
             $admin_ips = array_map('trim', explode("\n", $admin_ip_list));
@@ -206,13 +182,11 @@ class MS_Firewall {
             });
         }
 
-        // Auto-detect and save admin IP on first admin login
         if (is_user_logged_in() && current_user_can('manage_options')) {
             $current_ip = $this->core->ms_get_user_ip();
             if (!in_array($current_ip, $admin_ips) && filter_var($current_ip, FILTER_VALIDATE_IP)) {
                 $admin_ips[] = $current_ip;
 
-                // Auto-save admin IP
                 $updated_list = implode("\n", array_unique($admin_ips));
                 $options = get_option('ms_settings', array());
                 $options['admin_whitelist_ips'] = $updated_list;
@@ -231,7 +205,6 @@ class MS_Firewall {
     private function get_custom_whitelist_ips() {
         $custom_ips = array();
 
-        // Get custom whitelist from settings
         $custom_ip_list = $this->core->ms_get_option('custom_whitelist_ips', '');
         if (!empty($custom_ip_list)) {
             $custom_ips = array_map('trim', explode("\n", $custom_ip_list));
@@ -244,13 +217,11 @@ class MS_Firewall {
     }
 
     private function is_valid_ip_range($range) {
-        // Check CIDR notation
         if (strpos($range, '/') !== false) {
             list($ip, $mask) = explode('/', $range);
             return filter_var($ip, FILTER_VALIDATE_IP) && is_numeric($mask) && $mask >= 0 && $mask <= 32;
         }
 
-        // Check wildcard notation
         if (strpos($range, '*') !== false) {
             $pattern = str_replace('*', '([0-9]{1,3})', preg_quote($range, '/'));
             return preg_match('/^' . $pattern . '$/', '192.168.1.1') !== false;
@@ -260,15 +231,12 @@ class MS_Firewall {
     }
 
     public function is_ip_whitelisted($ip) {
-        // Refresh whitelist if needed
         $this->refresh_whitelist();
 
-        // Check exact IP match
         if (in_array($ip, $this->whitelisted_ips)) {
             return true;
         }
 
-        // Check IP ranges from settings
         $ip_ranges = $this->core->ms_get_option('whitelist_ip_ranges', '');
         if (!empty($ip_ranges)) {
             $ranges = array_map('trim', explode("\n", $ip_ranges));
@@ -279,7 +247,6 @@ class MS_Firewall {
             }
         }
 
-        // Check custom whitelist IPs (including ranges)
         $custom_ips = $this->get_custom_whitelist_ips();
         foreach ($custom_ips as $custom_ip) {
             if ($this->ip_in_range($ip, $custom_ip)) {
@@ -292,7 +259,6 @@ class MS_Firewall {
 
     private function ip_in_range($ip, $range) {
         if (strpos($range, '/') !== false) {
-            // CIDR notation
             list($subnet, $mask) = explode('/', $range);
             $ip_long = ip2long($ip);
             $subnet_long = ip2long($subnet);
@@ -304,7 +270,6 @@ class MS_Firewall {
             $mask_long = -1 << (32 - (int)$mask);
             return ($ip_long & $mask_long) === ($subnet_long & $mask_long);
         } else {
-            // Exact match or wildcard
             if (strpos($range, '*') !== false) {
                 $pattern = str_replace('*', '([0-9]{1,3})', preg_quote($range, '/'));
                 return preg_match('/^' . $pattern . '$/', $ip) === 1;
@@ -316,32 +281,26 @@ class MS_Firewall {
     private function should_apply_firewall_protection() {
         $current_ip = $this->core->ms_get_user_ip();
 
-        // Skip if IP is whitelisted
         if ($this->is_ip_whitelisted($current_ip)) {
             return false;
         }
 
-        // Skip for AJAX requests from logged in users
         if (defined('DOING_AJAX') && DOING_AJAX && is_user_logged_in()) {
             return false;
         }
 
-        // Skip for cron jobs
         if (defined('DOING_CRON') && DOING_CRON) {
             return false;
         }
 
-        // Skip for admin area if user is logged in with admin privileges
         if (is_admin() && is_user_logged_in() && current_user_can('manage_options')) {
             return false;
         }
 
-        // Skip for REST API requests from authenticated users
         if (defined('REST_REQUEST') && REST_REQUEST && is_user_logged_in()) {
             return false;
         }
 
-        // Skip for XML-RPC if user is authenticated
         if (defined('XMLRPC_REQUEST') && XMLRPC_REQUEST && is_user_logged_in()) {
             return false;
         }
@@ -349,181 +308,249 @@ class MS_Firewall {
         return true;
     }
 
-    public function apply_6g_firewall() {
+    public function apply_firewall_protection() {
         if (!$this->should_apply_firewall_protection()) {
             return;
         }
 
-        $this->check_6g_query_string();
-        $this->check_6g_request_uri();
-        $this->check_6g_request_method();
-        $this->check_6g_http_headers();
-
-        // Only check user agent if bot protection is disabled
-        if (!$this->core->ms_get_option('enable_bot_protection', 1)) {
-            $this->check_6g_user_agent();
-        }
+        $this->check_query_string_patterns();
+        $this->check_request_uri_patterns();
+        $this->check_request_method_patterns();
+        $this->check_user_agent_patterns();
+        $this->check_http_header_patterns();
+        $this->check_post_data_patterns();
+        $this->check_file_upload_patterns();
     }
 
-    private function check_6g_query_string() {
+    private function check_query_string_patterns() {
         $query_string = $_SERVER['QUERY_STRING'] ?? '';
 
         if (empty($query_string)) {
             return;
         }
 
-        $six_g_patterns = array(
-            '/(eval\()/i',
-            '/(127\.0\.0\.1)/i',
+        $ms_firewall_patterns = array(
+            // Advanced SQL injection patterns
+            '/(union|select|insert|update|delete|drop|create|alter|exec|execute)\s*[\(\[]/i',
+            '/(information_schema|mysql\.|sys\.|performance_schema)/i',
+            '/(concat|load_file|outfile|dumpfile|into\s+outfile)/i',
+            '/(benchmark|sleep|get_lock|release_lock|user\(\)|version\(\))/i',
+            '/(having|group\s+by|order\s+by|limit|offset)\s+/i',
+
+            // Advanced XSS patterns
+            '/(<|%3c)(script|iframe|object|embed|applet|meta|link|style|img|svg|form|input|button)(\s|%20|>|%3e)/i',
+            '/(javascript|vbscript|data|livescript|mocha|jscript)(\s*:|%3a)/i',
+            '/(onload|onerror|onclick|onmouseover|onfocus|onblur|onchange|onsubmit)(\s*=|%3d)/i',
+            '/(document\.|window\.|eval\(|alert\(|confirm\(|prompt\(|setTimeout\(|setInterval\()/i',
+            '/(expression\(|url\(|@import|behaviour:)/i',
+
+            // File inclusion and traversal
+            '/(\.\./|\.\.\\\\|\.\.%2f|\.\.%5c){2,}/i',
+            '/(etc\/passwd|etc\/shadow|etc\/hosts|proc\/self\/environ|proc\/version|proc\/cmdline)/i',
+            '/(boot\.ini|win\.ini|system\.ini|php\.ini|\.htaccess|\.htpasswd|wp-config\.php)/i',
+            '/(file:\/\/|php:\/\/|ftp:\/\/|data:\/\/|expect:\/\/|zip:\/\/|compress\.zlib:\/\/)/i',
+
+            // Code injection patterns
+            '/(eval|base64_decode|gzinflate|str_rot13|assert|preg_replace.*\/e|create_function)/i',
+            '/(file_get_contents|file_put_contents|fopen|fwrite|include|require|include_once|require_once)/i',
+            '/(system|exec|shell_exec|passthru|popen|proc_open|escapeshellcmd|escapeshellarg)/i',
+            '/(call_user_func|call_user_func_array|register_shutdown_function|register_tick_function)/i',
+
+            // WordPress specific
+            '/(wp-config|wp-admin\/includes|wp-includes\/|xmlrpc\.php)/i',
+            '/(thumbs?(_editor|open)?|tim(thumb)?|phpthumb)\.php/i',
+            '/(revslider|layerslider|masterslider)/i',
+
+            // Protocol manipulation and null bytes
+            '/(%00|%01|%02|%03|%04|%05|%06|%07|%08|%09|%0a|%0b|%0c|%0d|%0e|%0f)/i',
+            '/(\x00|\x01|\x02|\x03|\x04|\x05|\x06|\x07|\x08|\x09|\x0a|\x0b|\x0c|\x0d|\x0e|\x0f)/i',
+
+            // Large payloads and suspicious globals
             '/([a-z0-9]{2000,})/i',
-            '/(javascript:)(.*)(;)/i',
-            '/(base64_encode)(.*)(\()/i',
-            '/(GLOBALS|REQUEST)(=|\[)/i',
-            '/(<|%3C)(.*)script(.*)(>|%3E)/i',
-            '/(\\\\|\.\.\.|\.\./|~|`|<|>|\|)/i',
-            '/(boot\.ini|etc\/passwd|self\/environ)/i',
-            '/(thumbs?(_editor|open)?|tim(thumb)?)\.php/i',
-            '/(\'|\")(.*)(drop|insert|md5|select|union)/i',
-            '/(union|select|insert|update|delete|drop|create|alter)/i',
-            '/(concat|load_file|outfile|dumpfile)/i',
-            '/(benchmark|sleep|get_lock|release_lock)/i',
-            '/(information_schema|mysql\.)/i'
+            '/(GLOBALS|REQUEST|_GET|_POST|_COOKIE|_SESSION|_SERVER|_FILES|_ENV)\[/i',
+
+            // Advanced evasion techniques
+            '/(chr\(|char\(|ascii\(|ord\(|hex\(|unhex\()/i',
+            '/(0x[0-9a-f]+|\\\\x[0-9a-f]+)/i'
         );
 
-        foreach ($six_g_patterns as $pattern) {
+        foreach ($ms_firewall_patterns as $pattern) {
             if (preg_match($pattern, $query_string)) {
-                $this->block_6g_request('6g_query_string', $pattern, $query_string);
+                $this->block_request('ms_firewall_query_string', $pattern, $query_string);
                 return;
             }
         }
     }
 
-    private function check_6g_request_uri() {
+    private function check_request_uri_patterns() {
         $request_uri = $_SERVER['REQUEST_URI'] ?? '';
 
         if (empty($request_uri)) {
             return;
         }
 
-        $six_g_uri_patterns = array(
-            '/([a-z0-9]{2000,})/i',
-            '/(https?|ftp|php):\//i',
-            '/(base64_encode)(.*)(\()/i',
-            '/(=\\\\\'|=\\\\%27|\/\\\\\'\/?)\\./i',
-            '/\/(\$(\&)?|\*|\"|\.|,|&|&?)\/?$/i',
-            '/(\{0\}|\(\/\(|\.\.\.|\+\+\+|\\\\\"\\\\\")/i',
-            '/(~|`|<|>|:|;|,|%|\\\\|\{|\}|\[|\]|\|)/i',
-            '/\/(=|\$&|_mm|cgi-|muieblack)/i',
-            '/(&pws=0|_vti_|\(null\)|\{\$itemURL\}|echo(.*)kae|etc\/passwd|eval\(|self\/environ)/i',
-            '/\.(aspx?|bash|bak?|cfg|cgi|dll|exe|git|hg|ini|jsp|log|mdb|out|sql|svn|swp|tar|rar|rdf)$/i',
-            '/\/(^$|(wp-)?config|mobiquo|phpinfo|shell|sqlpatch|thumb|thumb_editor|thumbopen|timthumb|webshell)\.php/i',
+        $ms_firewall_uri_patterns = array(
+            // Directory traversal
+            '/(\.\./|\.\.\\\\|\.\.%2f|\.\.%5c){2,}/i',
+            '/(\.\.\/){3,}/i',
+            '/(\.\./){3,}/i',
+
+            // System files
+            '/(etc\/passwd|etc\/shadow|proc\/self\/environ|boot\.ini|win\.ini|system\.ini)/i',
+            '/(php\.ini|\.htaccess|\.htpasswd|\.env|composer\.json|package\.json)/i',
+
+            // Executable and dangerous files
+            '/\.(aspx?|bash|bat|bak|cfg|cgi|cmd|com|dll|exe|hta|ini|jsp|log|mdb|out|php\d?|pif|scr|sh|sql|swp|tar|rar|zip|war|ear)(\?|$)/i',
+
+            // WordPress specific files
+            '/\/(wp-config|wp-admin\/includes|wp-includes\/|xmlrpc)\.php/i',
+            '/\/(install|upgrade|setup|config|admin|test|demo|backup|dump)\.php/i',
+
+            // Malicious scripts and shells
+            '/\/(shell|cmd|command|backdoor|webshell|c99|r57|bypass|exploit|hack)\.php/i',
+            '/\/(phpinfo|phpmyadmin|adminer|sql|database|mysql|postgres)\.php/i',
+
+            // Code patterns in URI
+            '/(base64_encode|base64_decode|eval|exec|system|shell_exec|passthru)/i',
             '/(union|select|insert|update|delete|drop|create|alter)/i',
-            '/(concat|load_file|outfile|dumpfile)/i',
-            '/(eval|base64_decode|gzinflate|str_rot13)/i',
-            '/(file_get_contents|fopen|fwrite|include|require)/i',
-            '/(system|exec|shell_exec|passthru|popen)/i'
+
+            // Protocol manipulation
+            '/(https?|ftp|php|file|data|expect|zip|compress|glob):/i',
+
+            // Null bytes and control characters
+            '/(%00|%01|%02|%03|%04|%05|%06|%07|%08|%09|%0a|%0b|%0c|%0d|%0e|%0f)/i',
+
+            // Large payloads
+            '/([a-z0-9]{1500,})/i',
+
+            // Suspicious parameters
+            '/(\?|&)(cmd|exec|system|shell|eval|base64|file|path|dir|url|src|data|include|require)=/i',
+
+            // Common attack patterns
+            '/(\<|%3c)(script|iframe|object|embed|applet)(\s|%20|\>|%3e)/i',
+            '/(javascript|vbscript|data|livescript):/i',
+
+            // WordPress vulnerabilities
+            '/(timthumb|thumb\.php|phpthumb|thumb_editor)/i',
+            '/(revslider|layerslider|masterslider|slider_revolution)/i',
+            '/(wp-vcd|class\.wp\.php|hello\.php)/i'
         );
 
-        foreach ($six_g_uri_patterns as $pattern) {
+        foreach ($ms_firewall_uri_patterns as $pattern) {
             if (preg_match($pattern, $request_uri)) {
-                $this->block_6g_request('6g_request_uri', $pattern, $request_uri);
-                return;
-            }
-        }
-
-        // Check for forbidden files
-        $forbidden_files = array(
-            '/wp-config.php', '/wp-config.bak', '/wp-config.txt',
-            '/.htaccess', '/.htpasswd', '/passwd', '/shadow',
-            '/etc/passwd', '/etc/shadow', '/etc/hosts',
-            '/proc/self/environ', '/proc/version', '/proc/cmdline',
-            '/boot.ini', '/win.ini', '/system.ini',
-            '/php.ini', '/.env', '/composer.json', '/package.json',
-            '/wp-vcd.php', '/class.wp.php' // Common malware files
-        );
-
-        foreach ($forbidden_files as $file) {
-            if (strpos($request_uri, $file) !== false) {
-                $this->block_6g_request('6g_forbidden_file', $file, $request_uri);
+                $this->block_request('ms_firewall_request_uri', $pattern, $request_uri);
                 return;
             }
         }
     }
 
-    private function check_6g_request_method() {
+    private function check_request_method_patterns() {
         $method = $_SERVER['REQUEST_METHOD'] ?? '';
-        $forbidden_methods = array('CONNECT', 'DEBUG', 'MOVE', 'PUT', 'TRACE', 'TRACK');
+
+        $forbidden_methods = array(
+            'CONNECT', 'DEBUG', 'MOVE', 'PUT', 'TRACE', 'TRACK', 'DELETE',
+            'PATCH', 'PROPFIND', 'PROPPATCH', 'MKCOL', 'COPY', 'LOCK', 'UNLOCK',
+            'SEARCH', 'SUBSCRIBE', 'UNSUBSCRIBE', 'NOTIFY', 'POLL', 'BMOVE',
+            'BDELETE', 'BPROPFIND', 'BPROPPATCH', 'BCOPY', 'BDELETE', 'BMOVE'
+        );
 
         if (in_array(strtoupper($method), $forbidden_methods)) {
-            $this->block_6g_request('6g_request_method', $method, 'Forbidden HTTP Method');
+            $this->block_request('ms_firewall_request_method', $method, 'Forbidden HTTP Method');
+            return;
         }
 
-        // Check for oversized POST requests
         if ($method === 'POST') {
             $content_length = $_SERVER['CONTENT_LENGTH'] ?? 0;
-            $max_post_size = $this->core->ms_get_option('max_post_size', 50) * 1024 * 1024; // Default 50MB
+            $max_post_size = $this->core->ms_get_option('max_post_size', 50) * 1024 * 1024;
 
             if ($content_length > $max_post_size) {
-                $this->block_6g_request('6g_large_post', $content_length, 'POST size too large');
+                $this->block_request('ms_firewall_large_post', $content_length, 'POST size too large');
+                return;
             }
         }
     }
 
-    private function check_6g_user_agent() {
+    private function check_user_agent_patterns() {
         $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 
         if (strlen($user_agent) > 2000) {
-            $this->block_6g_request('6g_user_agent_length', 'oversized', $user_agent);
+            $this->block_request('ms_firewall_user_agent_length', 'oversized', $user_agent);
             return;
         }
 
         if (empty($user_agent)) {
-            $this->block_6g_request('6g_empty_user_agent', 'empty', 'Empty User Agent');
+            $this->block_request('ms_firewall_empty_user_agent', 'empty', 'Empty User Agent');
             return;
         }
 
-        $six_g_bad_bots = array(
-            'archive.org', 'binlar', 'casper', 'checkpriv', 'choppy', 'clshttp',
-            'cmsworld', 'diavol', 'dotbot', 'extract', 'feedfinder', 'flicky',
-            'g00g1e', 'harvest', 'heritrix', 'httrack', 'kmccrew', 'loader',
-            'miner', 'nikto', 'nutch', 'planetwork', 'postrank', 'purebot',
-            'pycurl', 'python', 'seekerspider', 'siclab', 'skygrid', 'sqlmap',
-            'sucker', 'turnit', 'vikspider', 'winhttp', 'xxxyy', 'youda',
-            'zmeu', 'zune', 'wp-vcd', 'apiword'
+        $ms_firewall_bad_agents = array(
+            // Security scanners and vulnerability tools
+            'acunetix', 'appscan', 'arachni', 'burpsuite', 'netsparker', 'nikto',
+            'nmap', 'openvas', 'paros', 'sqlmap', 'vega', 'w3af', 'webscarab',
+            'wpscan', 'skipfish', 'grabber', 'dirbuster', 'dirb', 'gobuster',
+            'masscan', 'zmap', 'shodan', 'censys', 'zgrab', 'nuclei',
+
+            // Malicious bots and scrapers
+            'binlar', 'casper', 'checkpriv', 'choppy', 'clshttp', 'cmsworld',
+            'diavol', 'dotbot', 'extract', 'feedfinder', 'flicky', 'g00g1e',
+            'harvest', 'heritrix', 'httrack', 'kmccrew', 'loader', 'miner',
+            'nutch', 'planetwork', 'postrank', 'purebot', 'pycurl', 'python',
+            'seekerspider', 'siclab', 'skygrid', 'sucker', 'turnit', 'vikspider',
+            'winhttp', 'xxxyy', 'youda', 'zmeu', 'zune', 'archive.org',
+
+            // Automated tools
+            'curl', 'wget', 'libwww', 'lwp-trivial', 'urllib', 'java/', 'go-http-client',
+            'httpclient', 'okhttp', 'python-requests', 'python-urllib',
+
+            // Malware and backdoors
+            'wp-vcd', 'backdoor', 'shell', 'webshell', 'c99', 'r57', 'bypass',
+            'exploit', 'payload', 'trojan', 'virus', 'malware', 'botnet',
+
+            // Spam and SEO bots
+            'semalt', 'kambasoft', 'savetubevideo', 'buttons-for-website',
+            'sharebutton', 'soundfrost', 'srecorder', 'softomix', 'openmediasoft',
+
+            // Additional bad bots
+            '360spider', 'acapbot', 'acoonbot', 'asterias', 'attackbot', 'backdorbot',
+            'becomebot', 'blackwidow', 'blekkobot', 'blexbot', 'blowfish', 'bullseye',
+            'bunnys', 'butterfly', 'careerbot', 'cheesebot', 'cherrypick', 'chinaclaw',
+            'copernic', 'copyrightcheck', 'cosmos', 'crescent', 'cy_cho', 'datacha',
+            'demon', 'dittospyder', 'dotnetdotcom', 'dumbot', 'emailcollector',
+            'emailsiphon', 'emailwolf', 'exabot', 'eyenetie', 'flaming', 'flashget'
         );
 
-        foreach ($six_g_bad_bots as $bot) {
-            if (stripos($user_agent, $bot) !== false) {
-                $this->block_6g_request('6g_user_agent_bot', $bot, $user_agent);
+        foreach ($ms_firewall_bad_agents as $agent) {
+            if (stripos($user_agent, $agent) !== false) {
+                $this->block_request('ms_firewall_user_agent_bot', $agent, $user_agent);
+                return;
+            }
+        }
+
+        $suspicious_ua_patterns = array(
+            '/script/i',
+            '/eval\(/i',
+            '/base64/i',
+            '/union.*select/i',
+            '/\<.*\>/i',
+            '/(javascript|vbscript):/i',
+            '/(onload|onerror|onclick)=/i'
+        );
+
+        foreach ($suspicious_ua_patterns as $pattern) {
+            if (preg_match($pattern, $user_agent)) {
+                $this->block_request('ms_firewall_user_agent_suspicious', $pattern, $user_agent);
                 return;
             }
         }
     }
 
-    private function check_6g_http_headers() {
-        // Check referer
-        if (isset($_SERVER['HTTP_REFERER'])) {
-            $referer = $_SERVER['HTTP_REFERER'];
-
-            if (strlen($referer) > 2000) {
-                $this->block_6g_request('6g_referer_length', 'oversized', $referer);
-                return;
-            }
-
-            $bad_referers = array('semalt.com', 'todaperfeita', 'kambasoft.com', 'savetubevideo.com');
-            foreach ($bad_referers as $bad_ref) {
-                if (stripos($referer, $bad_ref) !== false) {
-                    $this->block_6g_request('6g_bad_referer', $bad_ref, $referer);
-                    return;
-                }
-            }
-        }
-
-        // Check other headers for malicious content
+    private function check_http_header_patterns() {
         $headers_to_check = array(
             'HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'HTTP_CLIENT_IP',
-            'HTTP_ACCEPT', 'HTTP_ACCEPT_LANGUAGE', 'HTTP_ACCEPT_ENCODING',
-            'HTTP_CONNECTION', 'HTTP_HOST'
+            'HTTP_REFERER', 'HTTP_ACCEPT', 'HTTP_ACCEPT_LANGUAGE',
+            'HTTP_ACCEPT_ENCODING', 'HTTP_CONNECTION', 'HTTP_HOST',
+            'HTTP_AUTHORIZATION', 'HTTP_COOKIE', 'HTTP_X_REQUESTED_WITH',
+            'HTTP_ORIGIN', 'HTTP_X_FORWARDED_PROTO', 'HTTP_X_FORWARDED_HOST'
         );
 
         foreach ($headers_to_check as $header) {
@@ -531,89 +558,140 @@ class MS_Firewall {
                 $value = $_SERVER[$header];
 
                 if (preg_match('/(\<|%3c).*script.*(\>|%3e)/i', $value)) {
-                    $this->block_6g_request('6g_header_script', $header, $value);
+                    $this->block_request('ms_firewall_header_script', $header, $value);
                     return;
                 }
 
                 if (preg_match('/(union|select|insert|update|delete|drop)/i', $value)) {
-                    $this->block_6g_request('6g_header_sql', $header, $value);
+                    $this->block_request('ms_firewall_header_sql', $header, $value);
                     return;
                 }
 
                 if (preg_match('/(\.\./|\.\.\\\\)/i', $value)) {
-                    $this->block_6g_request('6g_header_traversal', $header, $value);
+                    $this->block_request('ms_firewall_header_traversal', $header, $value);
+                    return;
+                }
+
+                if (preg_match('/(%00|%01|%02|%03|%04|%05|%06|%07)/i', $value)) {
+                    $this->block_request('ms_firewall_header_null_byte', $header, $value);
+                    return;
+                }
+
+                if (preg_match('/(eval|base64_decode|exec|system|shell_exec)/i', $value)) {
+                    $this->block_request('ms_firewall_header_code_injection', $header, $value);
+                    return;
+                }
+            }
+        }
+
+        if (isset($_SERVER['HTTP_REFERER'])) {
+            $referer = $_SERVER['HTTP_REFERER'];
+
+            if (strlen($referer) > 2000) {
+                $this->block_request('ms_firewall_referer_length', 'oversized', $referer);
+                return;
+            }
+
+            $bad_referers = array(
+                'semalt.com', 'todaperfeita', 'kambasoft.com', 'savetubevideo.com',
+                'buttons-for-website.com', 'sharebutton.net', 'soundfrost.org',
+                'srecorder.com', 'softomix.com', 'openmediasoft.com',
+                'econom.co', 'guardlink.org', 'hongfanji.com', 'iedit.ilovevitaly.com',
+                'ilovevitaly.co', 'ilovevitaly.com', 'ilovevitaly.info', 'ilovevitaly.org',
+                'ilovevitaly.ru', 'iskalko.ru', 'luxup.ru', 'myftpupload.com',
+                'o-o-6-o-o.com', 'o-o-8-o-o.com', 'ranksonic.info', 'ranksonic.org'
+            );
+
+            foreach ($bad_referers as $bad_ref) {
+                if (stripos($referer, $bad_ref) !== false) {
+                    $this->block_request('ms_firewall_bad_referer', $bad_ref, $referer);
                     return;
                 }
             }
         }
     }
 
-    public function basic_firewall_check() {
-        if (!$this->should_apply_firewall_protection()) {
+    private function check_post_data_patterns() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             return;
         }
 
-        $this->check_basic_patterns();
-        $this->check_file_inclusion();
-        $this->check_code_injection();
-    }
+        $post_data = file_get_contents('php://input');
 
-    private function check_basic_patterns() {
-        $request_uri = $_SERVER['REQUEST_URI'] ?? '';
-        $query_string = $_SERVER['QUERY_STRING'] ?? '';
+        if (empty($post_data)) {
+            return;
+        }
 
-        $basic_patterns = array(
-            '/\.\./i',
-            '/union.*select/i',
-            '/<script/i',
-            '/javascript:/i',
-            '/eval\(/i',
-            '/base64_decode/i',
-            '/GLOBALS/i',
-            '/_REQUEST/i'
+        $ms_firewall_post_patterns = array(
+            '/(union|select|insert|update|delete|drop|create|alter)\s*[\(\[]/i',
+            '/(information_schema|mysql\.|sys\.|performance_schema)/i',
+            '/(concat|load_file|outfile|dumpfile|into\s+outfile)/i',
+            '/(<|%3c)(script|iframe|object|embed|applet)(\s|%20|>|%3e)/i',
+            '/(javascript|vbscript|onload|onerror|onclick)(\s*:|%3a)/i',
+            '/(eval|base64_decode|gzinflate|str_rot13|assert)/i',
+            '/(file_get_contents|file_put_contents|fopen|fwrite)/i',
+            '/(system|exec|shell_exec|passthru|popen)/i',
+            '/(\.\./|\.\.\\\\|\.\.%2f|\.\.%5c){2,}/i',
+            '/(etc\/passwd|etc\/shadow|proc\/self\/environ)/i',
+            '/(%00|%01|%02|%03|%04|%05|%06|%07)/i'
         );
 
-        foreach ($basic_patterns as $pattern) {
-            if (preg_match($pattern, $request_uri . $query_string)) {
-                $this->block_basic_request('basic_firewall', $pattern, $request_uri . $query_string);
+        foreach ($ms_firewall_post_patterns as $pattern) {
+            if (preg_match($pattern, $post_data)) {
+                $this->block_request('ms_firewall_post_data', $pattern, 'Malicious POST data');
                 return;
             }
         }
     }
 
-    private function check_file_inclusion() {
-        $request_uri = $_SERVER['REQUEST_URI'] ?? '';
-        $query_string = $_SERVER['QUERY_STRING'] ?? '';
+    private function check_file_upload_patterns() {
+        if (empty($_FILES)) {
+            return;
+        }
 
-        $lfi_patterns = array(
-            '/etc\/passwd/',
-            '/proc\/self\/environ/',
-            '/boot\.ini/',
-            '/win\.ini/',
-            '/system\.ini/'
-        );
+        foreach ($_FILES as $file) {
+            if (!isset($file['name']) || !isset($file['tmp_name'])) {
+                continue;
+            }
 
-        foreach ($lfi_patterns as $pattern) {
-            if (preg_match($pattern, $request_uri . $query_string)) {
-                $this->block_basic_request('file_inclusion', $pattern, 'File inclusion attempt');
+            $filename = $file['name'];
+            $tmp_name = $file['tmp_name'];
+
+            $dangerous_extensions = array(
+                'php', 'php3', 'php4', 'php5', 'php7', 'phtml', 'pht',
+                'asp', 'aspx', 'jsp', 'jspx', 'cfm', 'cfc',
+                'pl', 'py', 'rb', 'sh', 'bash', 'bat', 'cmd',
+                'exe', 'com', 'scr', 'pif', 'vbs', 'js',
+                'jar', 'war', 'ear', 'htaccess', 'htpasswd'
+            );
+
+            $file_ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+            if (in_array($file_ext, $dangerous_extensions)) {
+                $this->block_request('ms_firewall_file_upload', $file_ext, "Dangerous file upload: {$filename}");
                 return;
             }
-        }
-    }
 
-    private function check_code_injection() {
-        $all_input = array_merge($_GET, $_POST);
+            if (is_uploaded_file($tmp_name) && filesize($tmp_name) > 0) {
+                $file_content = file_get_contents($tmp_name, false, null, 0, 1024);
 
-        foreach ($all_input as $key => $value) {
-            if (is_string($value)) {
-                $dangerous_functions = array(
-                    'eval', 'exec', 'system', 'shell_exec', 'passthru',
-                    'file_get_contents', 'include', 'require'
+                $malicious_patterns = array(
+                    '/<\?php/i',
+                    '/eval\(/i',
+                    '/base64_decode/i',
+                    '/system\(/i',
+                    '/exec\(/i',
+                    '/shell_exec/i',
+                    '/passthru\(/i',
+                    '/file_get_contents\(/i',
+                    '/fopen\(/i',
+                    '/include\(/i',
+                    '/require\(/i'
                 );
 
-                foreach ($dangerous_functions as $func) {
-                    if (preg_match('/\b' . preg_quote($func, '/') . '\s*\(/i', $value)) {
-                        $this->block_basic_request('code_injection', $func, "Dangerous function in {$key}");
+                foreach ($malicious_patterns as $pattern) {
+                    if (preg_match($pattern, $file_content)) {
+                        $this->block_request('ms_firewall_file_content', $pattern, "Malicious file content: {$filename}");
                         return;
                     }
                 }
@@ -621,92 +699,65 @@ class MS_Firewall {
         }
     }
 
-    private function block_6g_request($rule_type, $pattern, $details) {
+    private function block_request($rule_type, $pattern, $details) {
         $ip = $this->core->ms_get_user_ip();
 
-        // Final whitelist check before blocking
         if ($this->is_ip_whitelisted($ip)) {
-            $this->core->ms_log_security_event('6g_firewall_whitelist_bypass',
-                "6G Firewall rule triggered but IP is whitelisted - Rule: {$rule_type}, IP: {$ip}",
+            $this->core->ms_log_security_event('ms_firewall_whitelist_bypass',
+                "Morden Security Firewall rule triggered but IP is whitelisted - Rule: {$rule_type}, IP: {$ip}",
                 'low'
             );
             return;
         }
 
-        $this->core->ms_log_security_event('6g_firewall_block',
-            "6G Firewall blocked request - Rule: {$rule_type}, Pattern: {$pattern}",
+        $this->core->ms_log_security_event('ms_firewall_block',
+            "Morden Security Firewall blocked request - Rule: {$rule_type}, Pattern: {$pattern}",
             'high'
         );
 
         if ($this->core->ms_get_option('firewall_auto_block_ip', 1)) {
-            $this->core->ms_block_ip($ip, "6G Firewall violation: {$rule_type}", 3600);
+            $this->core->ms_block_ip($ip, "MS Firewall violation: {$rule_type}", 3600);
         }
 
-        $this->send_block_response('6G Firewall', $rule_type);
-    }
-
-    private function block_basic_request($rule_type, $pattern, $details) {
-        $ip = $this->core->ms_get_user_ip();
-
-        // Final whitelist check before blocking
-        if ($this->is_ip_whitelisted($ip)) {
-            $this->core->ms_log_security_event('basic_firewall_whitelist_bypass',
-                "Basic Firewall rule triggered but IP is whitelisted - Rule: {$rule_type}, IP: {$ip}",
-                'low'
-            );
-            return;
-        }
-
-        $this->core->ms_log_security_event('basic_firewall_block',
-            "Basic Firewall blocked request - Rule: {$rule_type}, Pattern: {$pattern}",
-            'medium'
-        );
-
-        if ($this->core->ms_get_option('firewall_auto_block_ip', 1)) {
-            $this->core->ms_block_ip($ip, "Basic Firewall violation: {$rule_type}", 1800);
-        }
-
-        $this->send_block_response('Basic Firewall', $rule_type);
-    }
-
-    private function send_block_response($firewall_type, $rule_type) {
         status_header(403);
 
         if ($this->core->ms_get_option('firewall_custom_block_page', 0)) {
-            $this->show_custom_block_page($firewall_type, $rule_type);
+            $this->show_custom_block_page($rule_type);
         } else {
-            die('Access Denied - Security Violation Detected');
+            die('Access Denied - Morden Security Protection Active');
         }
     }
 
-    private function show_custom_block_page($firewall_type, $rule_type) {
-        $block_message = $this->core->ms_get_option('firewall_block_message', 'Access Denied - Your request has been blocked by our security system.');
+    private function show_custom_block_page($rule_type) {
+        $block_message = $this->core->ms_get_option('firewall_block_message', 'Access Denied - Your request has been blocked by Morden Security protection system.');
 
         echo '<!DOCTYPE html>
 <html>
 <head>
-    <title>Access Denied</title>
+    <title>Access Denied - Morden Security</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin: 50px; background: #f5f5f5; }
-        .container { max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .error-code { font-size: 72px; color: #e74c3c; margin-bottom: 20px; }
-        .error-message { font-size: 18px; color: #333; margin-bottom: 20px; }
-        .error-details { font-size: 14px; color: #666; }
+        body { font-family: Arial, sans-serif; text-align: center; margin: 50px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .container { max-width: 600px; margin: 0 auto; background: rgba(255,255,255,0.1); padding: 40px; border-radius: 16px; backdrop-filter: blur(10px); }
+        .error-code { font-size: 72px; margin-bottom: 20px; }
+        .error-message { font-size: 18px; margin-bottom: 20px; }
+        .error-details { font-size: 14px; opacity: 0.8; }
         .back-link { margin-top: 30px; }
-        .back-link a { color: #3498db; text-decoration: none; }
+        .back-link a { color: white; text-decoration: none; border: 1px solid white; padding: 10px 20px; border-radius: 8px; }
+        .logo { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="logo">🛡️ Morden Security</div>
         <div class="error-code">403</div>
         <div class="error-message">' . esc_html($block_message) . '</div>
         <div class="error-details">
-            Firewall: ' . esc_html($firewall_type) . '<br>
+            Protection: Morden Security Firewall<br>
             Rule: ' . esc_html($rule_type) . '<br>
             Time: ' . date('Y-m-d H:i:s') . '<br>
-            Reference ID: ' . uniqid() . '
+            Reference ID: MS-' . uniqid() . '
         </div>
         <div class="back-link">
             <a href="javascript:history.back()">← Go Back</a>
@@ -720,7 +771,6 @@ class MS_Firewall {
     public function track_user_login($user_login, $user) {
         $current_ip = $this->core->ms_get_user_ip();
 
-        // Add to logged in users
         $logged_in_users = get_transient('ms_logged_in_users');
         if (!$logged_in_users) {
             $logged_in_users = array();
@@ -742,7 +792,6 @@ class MS_Firewall {
             $user->ID
         );
 
-        // Refresh whitelist
         $this->init_whitelist();
     }
 
@@ -770,30 +819,23 @@ class MS_Firewall {
 
         $stats = array();
 
-        $stats['6g_blocks_today'] = $wpdb->get_var($wpdb->prepare(
+        $stats['firewall_blocks_today'] = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM $log_table
-             WHERE event_type = '6g_firewall_block'
+             WHERE event_type = 'ms_firewall_block'
              AND created_at > %s",
             date('Y-m-d 00:00:00')
         ));
 
-        $stats['basic_blocks_today'] = $wpdb->get_var($wpdb->prepare(
+        $stats['firewall_blocks_week'] = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM $log_table
-             WHERE event_type = 'basic_firewall_block'
-             AND created_at > %s",
-            date('Y-m-d 00:00:00')
-        ));
-
-        $stats['total_blocks_week'] = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM $log_table
-             WHERE event_type IN ('6g_firewall_block', 'basic_firewall_block')
+             WHERE event_type = 'ms_firewall_block'
              AND created_at > %s",
             date('Y-m-d 00:00:00', strtotime('-7 days'))
         ));
 
         $stats['whitelist_bypasses'] = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM $log_table
-             WHERE event_type LIKE '%whitelist_bypass%'
+             WHERE event_type = 'ms_firewall_whitelist_bypass'
              AND created_at > %s",
             date('Y-m-d 00:00:00')
         ));
@@ -801,7 +843,7 @@ class MS_Firewall {
         $stats['top_blocked_rules'] = $wpdb->get_results($wpdb->prepare(
             "SELECT description, COUNT(*) as count
              FROM $log_table
-             WHERE event_type IN ('6g_firewall_block', 'basic_firewall_block')
+             WHERE event_type = 'ms_firewall_block'
              AND created_at > %s
              GROUP BY description
              ORDER BY count DESC

@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Morden Security
  * Plugin URI: https://github.com/sadewadee/morden-security
- * Description: Comprehensive WordPress security plugin with advanced protection features including firewall, brute force protection, security headers, file integrity monitoring, Hide Login URL, Database Prefix Changer, and File Permission Checker.
- * Version: 1.3.0
+ * Description: Comprehensive WordPress security plugin with advanced firewall protection, brute force defense, security headers, file integrity monitoring, Hide Login URL, Database Prefix Changer, and File Permission Checker.
+ * Version: 1.4.0
  * Author: Mordenhost Team
  * Author URI: https://mordenhost.com
  * License: GPL v2 or later
@@ -20,7 +20,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('MS_VERSION', '1.3.0');
+define('MS_VERSION', '1.4.0');
 define('MS_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('MS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('MS_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -51,14 +51,27 @@ class Morden_Security {
     }
 
     private function ms_include_files() {
+        // Core files - harus dimuat terlebih dahulu
         require_once MS_PLUGIN_PATH . 'includes/class-ms-database.php';
-        require_once MS_PLUGIN_PATH . 'includes/class-ms-version.php';
         require_once MS_PLUGIN_PATH . 'includes/class-ms-core.php';
-        require_once MS_PLUGIN_PATH . 'includes/class-ms-security.php';
-        require_once MS_PLUGIN_PATH . 'includes/class-ms-customizer.php';
-        require_once MS_PLUGIN_PATH . 'includes/class-ms-firewall.php';
-        require_once MS_PLUGIN_PATH . 'includes/class-ms-rate-limiter.php';
-        require_once MS_PLUGIN_PATH . 'includes/class-ms-logger.php';
+
+        // Optional files - cek keberadaan sebelum include
+        $optional_files = array(
+            'includes/class-ms-permissions.php',
+            'includes/class-ms-version.php',
+            'includes/class-ms-security.php',
+            'includes/class-ms-customizer.php', // FIXED: Ganti dari customization ke customizer
+            'includes/class-ms-firewall.php',
+            'includes/class-ms-rate-limiter.php',
+            'includes/class-ms-logger.php'
+        );
+
+        foreach ($optional_files as $file) {
+            $file_path = MS_PLUGIN_PATH . $file;
+            if (file_exists($file_path)) {
+                require_once $file_path;
+            }
+        }
 
         if (is_admin()) {
             require_once MS_PLUGIN_PATH . 'includes/class-ms-admin.php';
@@ -67,14 +80,26 @@ class Morden_Security {
 
     private function ms_init_components() {
         MS_Core::get_instance();
-        MS_Security::get_instance();
-        MS_Firewall::get_instance();
-        MS_Customizer::get_instance();
-        MS_Logger::get_instance();
 
-        add_action('wp_login', array($firewall, 'track_user_login'), 10, 2);
+        // Initialize components yang ada
+        if (class_exists('MS_Security')) {
+            MS_Security::get_instance();
+        }
 
-        if (is_admin()) {
+        if (class_exists('MS_Firewall')) {
+            $firewall = MS_Firewall::get_instance();
+            add_action('wp_login', array($firewall, 'track_user_login'), 10, 2);
+        }
+
+        if (class_exists('MS_Customizer')) { // FIXED: Ganti dari MS_Customization ke MS_Customizer
+            MS_Customizer::get_instance();
+        }
+
+        if (class_exists('MS_Logger')) {
+            MS_Logger::get_instance();
+        }
+
+        if (is_admin() && class_exists('MS_Admin')) {
             MS_Admin::get_instance();
         }
     }
@@ -109,25 +134,21 @@ class Morden_Security {
             'enable_file_integrity' => 1,
             'hide_login_url' => 0,
             'custom_login_url' => 'secure-login',
-            'firewall_mode' => '6g',
-            'enable_6g_firewall' => 1,
-            'enable_basic_firewall' => 0,
-            'enable_firewall' => 1,
-            'block_suspicious_requests' => 1,
             'firewall_auto_block_ip' => 1,
-            'firewall_custom_block_page' => 0,
-            'firewall_block_message' => 'Access Denied - Your request has been blocked by our security system.',
-            'admin_whitelist_ips' => 1,
+            'firewall_custom_block_page' => 1,
+            'firewall_block_message' => 'Access Denied - Your request has been blocked by Morden Security protection system.',
+            'admin_whitelist_ips' => '',
             'custom_whitelist_ips' => '',
             'whitelist_ip_ranges' => ''
         );
 
-            if (is_admin() && current_user_can('manage_options')) {
-                $current_ip = $_SERVER['REMOTE_ADDR'] ?? '';
-                if (!empty($current_ip)) {
-                    $default_options['admin_whitelist_ips'] = $current_ip;
-                }
+        // Auto-add current admin IP
+        if (is_admin() && current_user_can('manage_options')) {
+            $current_ip = $_SERVER['REMOTE_ADDR'] ?? '';
+            if (!empty($current_ip)) {
+                $default_options['admin_whitelist_ips'] = $current_ip;
             }
+        }
 
         add_option('ms_settings', $default_options);
 
@@ -149,8 +170,21 @@ class Morden_Security {
         $htaccess_file = $upload_dir['basedir'] . '/.htaccess';
 
         if (!file_exists($htaccess_file)) {
-            $htaccess_content = "Options -Indexes\n";
+            $htaccess_content = "# Morden Security - Upload Protection\n";
+            $htaccess_content .= "Options -Indexes\n";
             $htaccess_content .= "<Files *.php>\n";
+            $htaccess_content .= "deny from all\n";
+            $htaccess_content .= "</Files>\n";
+            $htaccess_content .= "<Files *.phtml>\n";
+            $htaccess_content .= "deny from all\n";
+            $htaccess_content .= "</Files>\n";
+            $htaccess_content .= "<Files *.php3>\n";
+            $htaccess_content .= "deny from all\n";
+            $htaccess_content .= "</Files>\n";
+            $htaccess_content .= "<Files *.php4>\n";
+            $htaccess_content .= "deny from all\n";
+            $htaccess_content .= "</Files>\n";
+            $htaccess_content .= "<Files *.php5>\n";
             $htaccess_content .= "deny from all\n";
             $htaccess_content .= "</Files>\n";
 
@@ -163,7 +197,9 @@ class Morden_Security {
         if (!file_exists($backup_dir)) {
             wp_mkdir_p($backup_dir);
 
-            $htaccess_content = "Order deny,allow\nDeny from all\n";
+            $htaccess_content = "# Morden Security - Backup Protection\n";
+            $htaccess_content .= "Order deny,allow\n";
+            $htaccess_content .= "Deny from all\n";
             file_put_contents($backup_dir . '/.htaccess', $htaccess_content);
         }
     }

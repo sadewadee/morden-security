@@ -556,6 +556,100 @@ jQuery(document).ready(function($) {
         setInterval(loadFirewallStats, 60000);
     }
 
+    function fixPermissions(fixType, selectedPaths) {
+        var button = fixType === 'all' ? $('#ms-fix-all-permissions') : $('#ms-fix-permissions');
+        var originalText = button.text();
+
+        button.prop('disabled', true).text('Fixing permissions...');
+
+        $.ajax({
+            url: ms_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'ms_fix_permissions',
+                fix_type: fixType,
+                selected_paths: selectedPaths || [],
+                nonce: ms_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    showNotice(response.data.message, 'success');
+
+                    if (response.data.failed_fixes && response.data.failed_fixes.length > 0) {
+                        displayFailedFixes(response.data.failed_fixes);
+                    }
+
+                    // Show diagnosis if available
+                    if (response.data.diagnosis) {
+                        displayDiagnosisInfo(response.data.diagnosis);
+                    }
+
+                    // Show server info if available
+                    if (response.data.server_info) {
+                        console.log('Server Info:', response.data.server_info);
+                    }
+
+                    setTimeout(function() {
+                        $('#ms-check-permissions').click();
+                    }, 1000);
+                } else {
+                    showNotice('Error: ' + response.data, 'error');
+                }
+                button.prop('disabled', false).text(originalText);
+            },
+            error: function() {
+                showNotice('Fix operation failed. Please try again.', 'error');
+                button.prop('disabled', false).text(originalText);
+            }
+        });
+    }
+
+    function displayDiagnosisInfo(diagnosis) {
+        var html = '<div class="notice notice-info"><h4>Permission Diagnosis:</h4>';
+        html += '<ul>';
+        html += '<li><strong>Can Read:</strong> ' + (diagnosis.can_read ? 'Yes' : 'No') + '</li>';
+        html += '<li><strong>Can Write:</strong> ' + (diagnosis.can_write ? 'Yes' : 'No') + '</li>';
+        html += '<li><strong>File Owner:</strong> ' + diagnosis.file_owner + '</li>';
+        html += '<li><strong>Process User:</strong> ' + diagnosis.process_user + '</li>';
+        html += '<li><strong>chmod() Test:</strong> ' + (diagnosis.chmod_test ? 'Passed' : 'Failed') + '</li>';
+        html += '</ul>';
+
+        if (!diagnosis.chmod_test) {
+            html += '<p><strong>Solution:</strong> Contact your hosting provider to fix file ownership or enable chmod() function.</p>';
+        } else if (diagnosis.file_owner !== diagnosis.process_user) {
+            html += '<p><strong>Solution:</strong> Run this command via SSH: <code>sudo chown -R www-data:www-data ' + window.location.hostname + '</code></p>';
+        }
+
+        html += '</div>';
+
+        $('.wrap h1').after(html);
+    }
+
+    // Add diagnose button
+    $('#ms-check-permissions').after('<button type="button" id="ms-diagnose-permissions" class="button">Diagnose Issues</button>');
+
+    $('#ms-diagnose-permissions').on('click', function() {
+        var button = $(this);
+        button.prop('disabled', true).text('Diagnosing...');
+
+        $.ajax({
+            url: ms_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'ms_diagnose_permissions',
+                nonce: ms_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    displayDiagnosisInfo(response.data);
+                }
+                button.prop('disabled', false).text('Diagnose Issues');
+            },
+            error: function() {
+                button.prop('disabled', false).text('Diagnose Issues');
+            }
+        });
+    });
 
     // Refresh stats every 30 seconds
     setInterval(loadSecurityStats, 30000);
