@@ -148,23 +148,6 @@ $options = get_option('ms_settings', array());
                             <?php endif; ?>
                         </td>
                     </tr>
-                    <tr>
-                        <th scope="row"><?php _e('File Permissions Check', 'morden-security'); ?></th>
-                        <td>
-                            <button type="button" id="ms-check-permissions" class="button button-secondary">
-                                <?php _e('Check File Permissions', 'morden-security'); ?>
-                            </button>
-                            <button type="button" id="ms-fix-permissions" class="button button-primary" style="display:none;">
-                                <?php _e('Fix Permissions', 'morden-security'); ?>
-                            </button>
-                            <p class="description"><?php _e('Scan and fix insecure file/folder permissions (777, 666)', 'morden-security'); ?></p>
-
-                            <div id="ms-permissions-result" style="display:none; margin-top: 15px;">
-                                <h4><?php _e('Permission Scan Results:', 'morden-security'); ?></h4>
-                                <div id="ms-permissions-content"></div>
-                            </div>
-                        </td>
-                    </tr>
                 </table>
             </div>
 
@@ -441,6 +424,23 @@ $options = get_option('ms_settings', array());
                     <tr>
                         <th scope="row"><?php _e('File Permissions Check', 'morden-security'); ?></th>
                         <td>
+                            <button type="button" id="ms-check-permissions" class="button button-secondary">
+                                <?php _e('Check File Permissions', 'morden-security'); ?>
+                            </button>
+                            <button type="button" id="ms-fix-permissions" class="button button-primary" style="display:none;">
+                                <?php _e('Fix Permissions', 'morden-security'); ?>
+                            </button>
+                            <p class="description"><?php _e('Scan and fix insecure file/folder permissions (777, 666)', 'morden-security'); ?></p>
+
+                            <div id="ms-permissions-result" style="display:none; margin-top: 15px;">
+                                <h4><?php _e('Permission Scan Results:', 'morden-security'); ?></h4>
+                                <div id="ms-permissions-content"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- <tr>
+                        <th scope="row"><?php _e('File Permissions Check', 'morden-security'); ?></th>
+                        <td>
                             <div class="ms-permissions-controls">
                                 <button type="button" id="ms-check-permissions" class="button button-secondary">
                                     <?php _e('Quick Scan', 'morden-security'); ?>
@@ -462,7 +462,7 @@ $options = get_option('ms_settings', array());
                                 <div id="ms-permissions-content"></div>
                             </div>
                         </td>
-                    </tr>
+                    </tr> -->
                     <tr>
                         <th scope="row"><?php _e('Automatic Scanning', 'morden-security'); ?></th>
                         <td>

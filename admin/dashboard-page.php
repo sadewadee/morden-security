@@ -2,6 +2,7 @@
 if (!defined('ABSPATH')) {
     exit;
 }
+$ms_version = class_exists('MS_Version') ? MS_Version::get_instance()->get_current_version() : MS_VERSION;
 ?>
 
 <div class="wrap">
@@ -24,7 +25,7 @@ if (!defined('ABSPATH')) {
             <div class="ms-header-actions">
                 <div class="ms-version-badge">
                     <span class="ms-version-label"><?php _e('Version', 'morden-security'); ?></span>
-                    <span class="ms-version-number">1.3.0</span>
+                    <span class="ms-version-number"><?php echo esc_html($ms_version); ?></span>
                 </div>
                 <div class="ms-status-indicator">
                     <span class="ms-status-dot"></span>

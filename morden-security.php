@@ -3,7 +3,7 @@
  * Plugin Name: Morden Security
  * Plugin URI: https://github.com/sadewadee/morden-security
  * Description: Comprehensive WordPress security plugin with advanced firewall protection, brute force defense, security headers, file integrity monitoring, Hide Login URL, Database Prefix Changer, and File Permission Checker.
- * Version: 1.4.0
+ * Version: 1.5.0
  * Author: Mordenhost Team
  * Author URI: https://mordenhost.com
  * License: GPL v2 or later
@@ -14,21 +14,51 @@
  * Tested up to: 6.7.2
  * Requires PHP: 7.4
  * Network: false
+ *
+ * @package MordenSecurity
+ * @since 1.0.0
  */
 
+namespace MordenSecurity;
+
+// Prevent direct access
 if (!defined('ABSPATH')) {
     exit;
 }
 
-define('MS_VERSION', '1.4.0');
-define('MS_PLUGIN_PATH', plugin_dir_path(__FILE__));
-define('MS_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('MS_PLUGIN_BASENAME', plugin_basename(__FILE__));
+// Plugin constants
+define('MORDEN_SECURITY_VERSION', '1.5.0');
+define('MORDEN_SECURITY_PLUGIN_PATH', plugin_dir_path(__FILE__));
+define('MORDEN_SECURITY_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('MORDEN_SECURITY_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
-class Morden_Security {
+// Backward compatibility constants (untuk existing code)
+if (!defined('MS_VERSION')) {
+    define('MS_VERSION', MORDEN_SECURITY_VERSION);
+    define('MS_PLUGIN_PATH', MORDEN_SECURITY_PLUGIN_PATH);
+    define('MS_PLUGIN_URL', MORDEN_SECURITY_PLUGIN_URL);
+    define('MS_PLUGIN_BASENAME', MORDEN_SECURITY_PLUGIN_BASENAME);
+}
 
+/**
+ * Main plugin class
+ *
+ * @since 1.0.0
+ */
+class Plugin {
+
+    /**
+     * Plugin instance
+     *
+     * @var Plugin
+     */
     private static $instance = null;
 
+    /**
+     * Get plugin instance
+     *
+     * @return Plugin
+     */
     public static function get_instance() {
         if (null === self::$instance) {
             self::$instance = new self();
@@ -36,75 +66,123 @@ class Morden_Security {
         return self::$instance;
     }
 
+    /**
+     * Constructor
+     */
     private function __construct() {
-        register_activation_hook(__FILE__, array($this, 'ms_activate'));
-        register_deactivation_hook(__FILE__, array($this, 'ms_deactivate'));
+        register_activation_hook(__FILE__, array($this, 'activate'));
+        register_deactivation_hook(__FILE__, array($this, 'deactivate'));
 
-        add_action('plugins_loaded', array($this, 'ms_init'));
+        add_action('plugins_loaded', array($this, 'init'));
     }
 
-    public function ms_init() {
+    /**
+     * Initialize plugin
+     */
+    public function init() {
         load_plugin_textdomain('morden-security', false, dirname(plugin_basename(__FILE__)) . '/languages');
 
-        $this->ms_include_files();
-        $this->ms_init_components();
+        $this->include_files();
+        $this->init_components();
     }
 
-    private function ms_include_files() {
-        // Core files - harus dimuat terlebih dahulu
-        require_once MS_PLUGIN_PATH . 'includes/class-ms-database.php';
-        require_once MS_PLUGIN_PATH . 'includes/class-ms-core.php';
-
-        // Optional files - cek keberadaan sebelum include
-        $optional_files = array(
+    /**
+     * Include required files
+     */
+    private function include_files() {
+        // Core files dengan namespace support
+        $files = array(
+            'includes/class-ms-database.php',
+            'includes/class-ms-core.php',
             'includes/class-ms-permissions.php',
             'includes/class-ms-version.php',
             'includes/class-ms-security.php',
-            'includes/class-ms-customizer.php', // FIXED: Ganti dari customization ke customizer
+            'includes/class-ms-customizer.php',
             'includes/class-ms-firewall.php',
             'includes/class-ms-rate-limiter.php',
+            'includes/class-ms-integrity-checker.php',
             'includes/class-ms-logger.php'
         );
 
-        foreach ($optional_files as $file) {
-            $file_path = MS_PLUGIN_PATH . $file;
+        foreach ($files as $file) {
+            $file_path = MORDEN_SECURITY_PLUGIN_PATH . $file;
             if (file_exists($file_path)) {
                 require_once $file_path;
             }
         }
 
+        // Admin files
         if (is_admin()) {
-            require_once MS_PLUGIN_PATH . 'includes/class-ms-admin.php';
+            $admin_file = MORDEN_SECURITY_PLUGIN_PATH . 'includes/class-ms-admin.php';
+            if (file_exists($admin_file)) {
+                require_once $admin_file;
+            }
         }
     }
 
-    private function ms_init_components() {
-        MS_Core::get_instance();
+    /**
+     * Initialize components
+     */
+    private function init_components() {
+        // Initialize dengan namespace awareness
+        if (class_exists('MS_Core')) {
+            \MS_Core::get_instance();
+        }
 
-        // Initialize components yang ada
         if (class_exists('MS_Security')) {
-            MS_Security::get_instance();
+            \MS_Security::get_instance();
         }
 
         if (class_exists('MS_Firewall')) {
-            $firewall = MS_Firewall::get_instance();
+            $firewall = \MS_Firewall::get_instance();
             add_action('wp_login', array($firewall, 'track_user_login'), 10, 2);
         }
 
-        if (class_exists('MS_Customizer')) { // FIXED: Ganti dari MS_Customization ke MS_Customizer
-            MS_Customizer::get_instance();
-        }
-
-        if (class_exists('MS_Logger')) {
-            MS_Logger::get_instance();
+        if (class_exists('MS_Customizer')) {
+            \MS_Customizer::get_instance();
         }
 
         if (is_admin() && class_exists('MS_Admin')) {
-            MS_Admin::get_instance();
+            \MS_Admin::get_instance();
         }
     }
 
-    public function ms_activate() {
+    /**
+     * Plugin activation
+     */
+    public function activate() {
+        // Activation logic dengan namespace support
+        if (!class_exists('MS_Database')) {
+            $database_file = MORDEN_SECURITY_PLUGIN_PATH . 'includes/class-ms-database.php';
+            if (file_exists($database_file)) {
+                require_once $database_file;
+            }
+        }
+
+        if (class_exists('MS_Database')) {
+            \MS_Database::create_all_tables();
+        }
+
+        // Set default options
+        $this->set_default_options();
+        $this->create_security_rules();
+        $this->create_backup_directory();
+    }
+
+    /**
+     * Plugin deactivation
+     */
+    public function deactivate() {
+        wp_clear_scheduled_hook('ms_cleanup_login_attempts');
+        wp_clear_scheduled_hook('ms_security_scan');
+        wp_clear_scheduled_hook('ms_integrity_check');
+        wp_cache_flush();
+    }
+
+    /**
+     * Set default plugin options
+     */
+    private function set_default_options() {
         $default_options = array(
             'disable_file_editor' => 1,
             'force_ssl' => 1,
@@ -117,12 +195,10 @@ class Morden_Security {
             'remove_wp_credit' => 1,
             'hide_wp_logo' => 1,
             'hide_admin_bar' => 1,
-            'turnstile_enabled' => 0,
-            'turnstile_site_key' => '',
-            'turnstile_secret_key' => '',
-            'enable_2fa' => 0,
-            'block_suspicious_requests' => 1,
             'enable_firewall' => 1,
+            'firewall_auto_block_ip' => 1,
+            'firewall_custom_block_page' => 1,
+            'firewall_block_message' => 'Access Denied - Your request has been blocked by Morden Security protection system.',
             'scan_uploads' => 1,
             'max_logs' => 1000,
             'max_days_retention' => 30,
@@ -134,9 +210,6 @@ class Morden_Security {
             'enable_file_integrity' => 1,
             'hide_login_url' => 0,
             'custom_login_url' => 'secure-login',
-            'firewall_auto_block_ip' => 1,
-            'firewall_custom_block_page' => 1,
-            'firewall_block_message' => 'Access Denied - Your request has been blocked by Morden Security protection system.',
             'admin_whitelist_ips' => '',
             'custom_whitelist_ips' => '',
             'whitelist_ip_ranges' => ''
@@ -151,21 +224,12 @@ class Morden_Security {
         }
 
         add_option('ms_settings', $default_options);
-
-        MS_Database::create_all_tables();
-        $this->ms_set_default_security_rules();
-        $this->ms_create_backup_directory();
     }
 
-    public function ms_deactivate() {
-        wp_clear_scheduled_hook('ms_cleanup_login_attempts');
-        wp_clear_scheduled_hook('ms_security_scan');
-        wp_clear_scheduled_hook('ms_integrity_check');
-
-        wp_cache_flush();
-    }
-
-    private function ms_set_default_security_rules() {
+    /**
+     * Create security rules
+     */
+    private function create_security_rules() {
         $upload_dir = wp_upload_dir();
         $htaccess_file = $upload_dir['basedir'] . '/.htaccess';
 
@@ -175,24 +239,15 @@ class Morden_Security {
             $htaccess_content .= "<Files *.php>\n";
             $htaccess_content .= "deny from all\n";
             $htaccess_content .= "</Files>\n";
-            $htaccess_content .= "<Files *.phtml>\n";
-            $htaccess_content .= "deny from all\n";
-            $htaccess_content .= "</Files>\n";
-            $htaccess_content .= "<Files *.php3>\n";
-            $htaccess_content .= "deny from all\n";
-            $htaccess_content .= "</Files>\n";
-            $htaccess_content .= "<Files *.php4>\n";
-            $htaccess_content .= "deny from all\n";
-            $htaccess_content .= "</Files>\n";
-            $htaccess_content .= "<Files *.php5>\n";
-            $htaccess_content .= "deny from all\n";
-            $htaccess_content .= "</Files>\n";
 
             file_put_contents($htaccess_file, $htaccess_content);
         }
     }
 
-    private function ms_create_backup_directory() {
+    /**
+     * Create backup directory
+     */
+    private function create_backup_directory() {
         $backup_dir = WP_CONTENT_DIR . '/ms-backups';
         if (!file_exists($backup_dir)) {
             wp_mkdir_p($backup_dir);
@@ -205,4 +260,5 @@ class Morden_Security {
     }
 }
 
-Morden_Security::get_instance();
+// Initialize plugin
+Plugin::get_instance();

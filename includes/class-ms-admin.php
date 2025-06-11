@@ -435,21 +435,60 @@ class MS_Admin {
     }
 
     public function ms_get_blocked_ips_ajax() {
-        check_ajax_referer('ms_admin_nonce', 'nonce');
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'] ?? '', 'ms_admin_nonce')) {
+            wp_send_json_error(__('Security check failed.', 'morden-security'));
+            return;
+        }
 
         if (!current_user_can('manage_options')) {
             wp_send_json_error(__('Insufficient permissions.', 'morden-security'));
             return;
         }
 
-        global $wpdb;
+        try {
+            global $wpdb;
 
-        $blocked_table = $wpdb->prefix . 'ms_blocked_ips';
-        $blocked_ips = $wpdb->get_results(
-            "SELECT * FROM $blocked_table ORDER BY created_at DESC"
-        );
+            $blocked_table = $wpdb->prefix . 'ms_blocked_ips';
 
-        wp_send_json_success($blocked_ips);
+            // Check if table exists
+            if ($wpdb->get_var("SHOW TABLES LIKE '$blocked_table'") != $blocked_table) {
+                wp_send_json_error(__('Database table not found.', 'morden-security'));
+                return;
+            }
+
+            $blocked_ips = $wpdb->get_results(
+                "SELECT * FROM $blocked_table
+                ORDER BY created_at DESC
+                LIMIT 1000",
+                ARRAY_A
+            );
+
+            if ($wpdb->last_error) {
+                error_log('MS Blocked IPs Query Error: ' . $wpdb->last_error);
+                wp_send_json_error(__('Database query failed.', 'morden-security'));
+                return;
+            }
+
+            // Process results using existing core method
+            $processed_ips = array();
+            foreach ($blocked_ips as $ip) {
+                $processed_ips[] = array(
+                    'ip_address' => $ip['ip_address'],
+                    'reason' => $ip['reason'],
+                    'blocked_until' => $ip['blocked_until'],
+                    'permanent' => $ip['permanent'],
+                    'created_at' => $ip['created_at'],
+                    'country' => $this->core->ms_get_country_from_ip($ip['ip_address']) // FIXED: Gunakan method yang sudah ada
+                );
+            }
+
+            wp_send_json_success($processed_ips);
+
+        } catch (Exception $e) {
+            error_log('MS Blocked IPs Error: ' . $e->getMessage());
+            wp_send_json_error(__('An error occurred while loading blocked IPs.', 'morden-security'));
+        }
     }
 
     public function ms_change_db_prefix_ajax() {
@@ -680,7 +719,6 @@ class MS_Admin {
         wp_send_json_success($diagnosis);
     }
 
-
     public function ms_run_integrity_check_ajax() {
         check_ajax_referer('ms_admin_nonce', 'nonce');
 
@@ -690,6 +728,17 @@ class MS_Admin {
         }
 
         try {
+            // Check if class exists, if not include it
+            if (!class_exists('MS_Integrity_Checker')) {
+                $integrity_file = MS_PLUGIN_PATH . 'includes/class-ms-integrity-checker.php';
+                if (file_exists($integrity_file)) {
+                    require_once $integrity_file;
+                } else {
+                    wp_send_json_error(__('Integrity checker not available.', 'morden-security'));
+                    return;
+                }
+            }
+
             $integrity_checker = new MS_Integrity_Checker();
             $results = $integrity_checker->check_wordpress_integrity();
 
@@ -707,6 +756,35 @@ class MS_Admin {
 
         } catch (Exception $e) {
             wp_send_json_error('Integrity check failed: ' . $e->getMessage());
+        }
+    }
+
+    public function ms_get_detailed_report_ajax() {
+        check_ajax_referer('ms_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Insufficient permissions.', 'morden-security'));
+            return;
+        }
+
+        try {
+            if (!class_exists('MS_Integrity_Checker')) {
+                $integrity_file = MS_PLUGIN_PATH . 'includes/class-ms-integrity-checker.php';
+                if (file_exists($integrity_file)) {
+                    require_once $integrity_file;
+                } else {
+                    wp_send_json_error(__('Integrity checker not available.', 'morden-security'));
+                    return;
+                }
+            }
+
+            $integrity_checker = new MS_Integrity_Checker();
+            $report = $integrity_checker->get_detailed_report();
+
+            wp_send_json_success($report);
+
+        } catch (Exception $e) {
+            wp_send_json_error('Failed to generate report: ' . $e->getMessage());
         }
     }
 
