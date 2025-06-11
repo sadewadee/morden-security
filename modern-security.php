@@ -56,6 +56,9 @@ class Morden_Security {
         require_once MS_PLUGIN_PATH . 'includes/class-ms-core.php';
         require_once MS_PLUGIN_PATH . 'includes/class-ms-security.php';
         require_once MS_PLUGIN_PATH . 'includes/class-ms-customizer.php';
+        require_once MS_PLUGIN_PATH . 'includes/class-ms-firewall.php';
+        require_once MS_PLUGIN_PATH . 'includes/class-ms-rate-limiter.php';
+        require_once MS_PLUGIN_PATH . 'includes/class-ms-logger.php';
 
         if (is_admin()) {
             require_once MS_PLUGIN_PATH . 'includes/class-ms-admin.php';
@@ -65,7 +68,11 @@ class Morden_Security {
     private function ms_init_components() {
         MS_Core::get_instance();
         MS_Security::get_instance();
+        MS_Firewall::get_instance();
         MS_Customizer::get_instance();
+        MS_Logger::get_instance();
+
+        add_action('wp_login', array($firewall, 'track_user_login'), 10, 2);
 
         if (is_admin()) {
             MS_Admin::get_instance();
@@ -101,8 +108,26 @@ class Morden_Security {
             'block_author_scans' => 1,
             'enable_file_integrity' => 1,
             'hide_login_url' => 0,
-            'custom_login_url' => 'secure-login'
+            'custom_login_url' => 'secure-login',
+            'firewall_mode' => '6g',
+            'enable_6g_firewall' => 1,
+            'enable_basic_firewall' => 0,
+            'enable_firewall' => 1,
+            'block_suspicious_requests' => 1,
+            'firewall_auto_block_ip' => 1,
+            'firewall_custom_block_page' => 0,
+            'firewall_block_message' => 'Access Denied - Your request has been blocked by our security system.',
+            'admin_whitelist_ips' => 1,
+            'custom_whitelist_ips' => '',
+            'whitelist_ip_ranges' => ''
         );
+
+            if (is_admin() && current_user_can('manage_options')) {
+                $current_ip = $_SERVER['REMOTE_ADDR'] ?? '';
+                if (!empty($current_ip)) {
+                    $default_options['admin_whitelist_ips'] = $current_ip;
+                }
+            }
 
         add_option('ms_settings', $default_options);
 

@@ -34,6 +34,21 @@ class MS_Admin {
         add_action('wp_ajax_ms_change_db_prefix', array($this, 'ms_change_db_prefix_ajax'));
         add_action('wp_ajax_ms_check_permissions', array($this, 'ms_check_permissions_ajax'));
         add_action('wp_ajax_ms_fix_permissions', array($this, 'ms_fix_permissions_ajax'));
+        add_action('wp_ajax_ms_get_firewall_stats', array($this, 'ms_get_firewall_stats_ajax'));
+    }
+
+    public function ms_get_firewall_stats_ajax() {
+        check_ajax_referer('ms_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Insufficient permissions.', 'morden-security'));
+            return;
+        }
+
+        $firewall = MS_Firewall::get_instance();
+        $stats = $firewall->get_firewall_stats();
+
+        wp_send_json_success($stats);
     }
 
     public function ms_change_db_prefix_ajax() {
@@ -243,12 +258,12 @@ class MS_Admin {
         $sanitized = array();
 
         $boolean_fields = array(
-            'disable_file_editor', 'force_ssl', 'disable_xmlrpc', 'limit_login_attempts',
-            'enable_security_headers', 'hide_wp_version', 'remove_wp_credit',
-            'hide_wp_logo', 'hide_admin_bar', 'turnstile_enabled', 'enable_2fa',
-            'block_suspicious_requests', 'enable_firewall', 'scan_uploads', 'enable_geolocation',
-            'block_php_uploads', 'disable_pingbacks', 'enable_bot_protection',
-            'block_author_scans', 'enable_file_integrity'
+        'disable_file_editor', 'force_ssl', 'disable_xmlrpc', 'limit_login_attempts',
+        'enable_security_headers', 'hide_wp_version', 'remove_wp_credit',
+        'hide_wp_logo', 'hide_admin_bar', 'turnstile_enabled', 'enable_2fa',
+        'scan_uploads', 'enable_geolocation', 'block_php_uploads', 'disable_pingbacks',
+        'enable_bot_protection', 'block_author_scans', 'enable_file_integrity',
+        'hide_login_url', 'firewall_auto_block_ip', 'firewall_custom_block_page'
         );
 
         foreach ($boolean_fields as $field) {
@@ -261,12 +276,21 @@ class MS_Admin {
         $sanitized['max_days_retention'] = min(absint($input['max_days_retention'] ?? 30), 365);
         $sanitized['turnstile_site_key'] = sanitize_text_field($input['turnstile_site_key'] ?? '');
         $sanitized['turnstile_secret_key'] = sanitize_text_field($input['turnstile_secret_key'] ?? '');
-
-        // Scan settings
+        $sanitized['6g_block_message'] = sanitize_textarea_field($input['6g_block_message'] ?? 'Access Denied - Your request has been blocked by our security system.');
         $sanitized['custom_safe_folders'] = sanitize_textarea_field($input['custom_safe_folders'] ?? '');
         $sanitized['scan_sensitivity'] = in_array($input['scan_sensitivity'] ?? 'medium', array('low', 'medium', 'high'))
             ? $input['scan_sensitivity'] : 'medium';
         $sanitized['max_scan_file_size'] = min(absint($input['max_scan_file_size'] ?? 10), 100);
+            $firewall_mode = sanitize_text_field($input['firewall_mode'] ?? '6g');
+    if (!in_array($firewall_mode, array('6g', 'basic', 'disabled'))) {
+        $firewall_mode = '6g';
+    }
+    $sanitized['firewall_mode'] = $firewall_mode;
+    $sanitized['enable_6g_firewall'] = ($firewall_mode === '6g') ? 1 : 0;
+    $sanitized['enable_basic_firewall'] = ($firewall_mode === 'basic') ? 1 : 0;
+    $sanitized['enable_firewall'] = ($firewall_mode !== 'disabled') ? 1 : 0;
+    $sanitized['block_suspicious_requests'] = ($firewall_mode !== 'disabled') ? 1 : 0;
+    $sanitized['firewall_block_message'] = sanitize_textarea_field($input['firewall_block_message'] ?? 'Access Denied - Your request has been blocked by our security system.');
 
         return $sanitized;
     }

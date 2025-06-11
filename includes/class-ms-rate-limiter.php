@@ -1,4 +1,4 @@
-    <?php
+<?php
 class MS_Rate_Limiter {
     private static $instance = null;
     private $rate_limits = array(

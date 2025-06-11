@@ -668,40 +668,98 @@ class MS_Core {
         return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
     }
 
-    public function ms_is_ip_blocked($ip = null) {
-        if (!$ip) {
-            $ip = $this->ms_get_user_ip();
+    public function ms_block_ip($ip_address, $reason, $duration = 3600, $permanent = false) {
+        global $wpdb;
+
+        // Never block whitelisted IPs
+        $firewall = MS_Firewall::get_instance();
+        if (method_exists($firewall, 'is_ip_whitelisted') && $firewall->is_ip_whitelisted($ip_address)) {
+            $this->ms_log_security_event('ip_block_prevented',
+                "IP block prevented for whitelisted IP: {$ip_address}, Reason: {$reason}",
+                'low'
+            );
+            return false;
         }
 
-        global $wpdb;
+        // Never block server IPs
+        $server_ips = array(
+            $_SERVER['SERVER_ADDR'] ?? '',
+            '127.0.0.1',
+            '::1',
+            'localhost'
+        );
+
+        if (in_array($ip_address, $server_ips)) {
+            $this->ms_log_security_event('server_ip_block_prevented',
+                "Server IP block prevented: {$ip_address}, Reason: {$reason}",
+                'medium'
+            );
+            return false;
+        }
+
+        // Never block current admin user IP
+        if (is_user_logged_in() && current_user_can('manage_options')) {
+            $current_ip = $this->ms_get_user_ip();
+            if ($ip_address === $current_ip) {
+                $this->ms_log_security_event('admin_ip_block_prevented',
+                    "Admin IP block prevented: {$ip_address}, Reason: {$reason}",
+                    'medium'
+                );
+                return false;
+            }
+        }
+
         $table_name = $wpdb->prefix . 'ms_blocked_ips';
 
-        $blocked = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM $table_name WHERE ip_address = %s AND (permanent = 1 OR blocked_until > %s)",
-            $ip,
-            current_time('mysql')
-        ));
+        $blocked_until = $permanent ? null : date('Y-m-d H:i:s', time() + $duration);
 
-        return !empty($blocked);
-    }
-
-    public function ms_block_ip($ip, $reason, $duration = null, $permanent = false) {
-        global $wpdb;
-
-        $table_name = $wpdb->prefix . 'ms_blocked_ips';
-        $blocked_until = $permanent ? null : date('Y-m-d H:i:s', time() + ($duration ?: 3600));
-
-        $wpdb->replace(
+        $result = $wpdb->replace(
             $table_name,
             array(
-                'ip_address' => $ip,
+                'ip_address' => $ip_address,
                 'reason' => $reason,
                 'blocked_until' => $blocked_until,
                 'permanent' => $permanent ? 1 : 0,
                 'created_at' => current_time('mysql')
-            )
+            ),
+            array('%s', '%s', '%s', '%d', '%s')
         );
 
-        $this->ms_log_security_event('ip_blocked', "IP blocked: $ip - Reason: $reason", 'high');
+        if ($result !== false) {
+            $this->ms_log_security_event('ip_blocked',
+                "IP blocked: {$ip_address}, Reason: {$reason}, Duration: " . ($permanent ? 'Permanent' : $duration . ' seconds'),
+                'high'
+            );
+            return true;
+        }
+
+        return false;
     }
+
+    public function ms_is_ip_blocked($ip_address = null) {
+        if ($ip_address === null) {
+            $ip_address = $this->ms_get_user_ip();
+        }
+
+        // Never consider whitelisted IPs as blocked
+        $firewall = MS_Firewall::get_instance();
+        if (method_exists($firewall, 'is_ip_whitelisted') && $firewall->is_ip_whitelisted($ip_address)) {
+            return false;
+        }
+
+        global $wpdb;
+
+        $table_name = $wpdb->prefix . 'ms_blocked_ips';
+
+        $blocked_ip = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table_name
+            WHERE ip_address = %s
+            AND (permanent = 1 OR blocked_until > %s)",
+            $ip_address,
+            current_time('mysql')
+        ));
+
+        return $blocked_ip !== null;
+    }
+
 }

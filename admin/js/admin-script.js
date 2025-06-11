@@ -531,6 +531,31 @@ jQuery(document).ready(function($) {
         $('#ms-permissions-result').show();
     }
 
+    function loadFirewallStats() {
+        $.ajax({
+            url: ms_ajax.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'ms_get_firewall_stats',
+                nonce: ms_ajax.nonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    $('#blocks-today').text(response.data.blocks_today || 0);
+                    $('#blocks-week').text(response.data.blocks_week || 0);
+                }
+            }
+        });
+    }
+
+    // Load firewall stats on page load
+    if ($('#ms-firewall-stats').length > 0) {
+        loadFirewallStats();
+
+        // Refresh stats every 60 seconds
+        setInterval(loadFirewallStats, 60000);
+    }
+
 
     // Refresh stats every 30 seconds
     setInterval(loadSecurityStats, 30000);

@@ -211,28 +211,106 @@ $options = get_option('ms_settings', array());
                             <p class="description"><?php _e('Lockout duration in seconds (default: 1800 = 30 minutes)', 'morden-security'); ?></p>
                         </td>
                     </tr>
+                    <tr>
+                        <th scope="row"><?php _e('IP Whitelist Management', 'morden-security'); ?></th>
+                        <td>
+                            <h4><?php _e('Admin IP Addresses', 'morden-security'); ?></h4>
+                            <textarea name="ms_settings[admin_whitelist_ips]" rows="5" cols="50" class="large-text" placeholder="192.168.1.100&#10;203.0.113.0"><?php echo esc_textarea($options['admin_whitelist_ips'] ?? ''); ?></textarea>
+                            <p class="description"><?php _e('Enter admin IP addresses that should never be blocked, one per line. Your current IP will be auto-added when you login.', 'morden-security'); ?></p>
+
+                            <h4><?php _e('Custom Whitelist IPs', 'morden-security'); ?></h4>
+                            <textarea name="ms_settings[custom_whitelist_ips]" rows="5" cols="50" class="large-text" placeholder="192.168.1.0/24&#10;10.0.0.*"><?php echo esc_textarea($options['custom_whitelist_ips'] ?? ''); ?></textarea>
+                            <p class="description"><?php _e('Enter additional IP addresses or ranges to whitelist. Supports CIDR notation (192.168.1.0/24) and wildcards (10.0.0.*).', 'morden-security'); ?></p>
+
+                            <h4><?php _e('Current Information', 'morden-security'); ?></h4>
+                            <p><strong><?php _e('Your Current IP:', 'morden-security'); ?></strong> <code><?php echo esc_html($this->core->ms_get_user_ip()); ?></code></p>
+                            <p><strong><?php _e('Server IP:', 'morden-security'); ?></strong> <code><?php echo esc_html($_SERVER['SERVER_ADDR'] ?? 'Unknown'); ?></code></p>
+
+                            <div class="ms-whitelist-status">
+                                <h4><?php _e('Currently Logged In Users', 'morden-security'); ?></h4>
+                                <div id="ms-logged-in-users">
+                                    <?php
+                                    $logged_in_users = get_transient('ms_logged_in_users');
+                                    if ($logged_in_users && !empty($logged_in_users)) {
+                                        echo '<table class="wp-list-table widefat fixed striped">';
+                                        echo '<thead><tr><th>User</th><th>IP Address</th><th>Login Time</th></tr></thead>';
+                                        echo '<tbody>';
+                                        foreach ($logged_in_users as $user_id => $data) {
+                                            $user = get_user_by('ID', $user_id);
+                                            if ($user) {
+                                                echo '<tr>';
+                                                echo '<td>' . esc_html($user->user_login) . '</td>';
+                                                echo '<td><code>' . esc_html($data['ip']) . '</code></td>';
+                                                echo '<td>' . esc_html(date('Y-m-d H:i:s', $data['timestamp'])) . '</td>';
+                                                echo '</tr>';
+                                            }
+                                        }
+                                        echo '</tbody></table>';
+                                    } else {
+                                        echo '<p>' . __('No users currently tracked.', 'morden-security') . '</p>';
+                                    }
+                                    ?>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+
                 </table>
             </div>
 
             <div id="firewall" class="tab-content">
                 <h2><?php _e('Firewall Settings', 'morden-security'); ?></h2>
+
+                <div class="ms-firewall-mode-selection">
+                    <h3><?php _e('Firewall Protection Mode', 'morden-security'); ?></h3>
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row"><?php _e('Protection Level', 'morden-security'); ?></th>
+                            <td>
+                                <label>
+                                    <input type="radio" name="ms_settings[firewall_mode]" value="6g" <?php checked($options['firewall_mode'] ?? '6g', '6g'); ?> />
+                                    <strong><?php _e('6G Firewall (Recommended)', 'morden-security'); ?></strong>
+                                </label>
+                                <p class="description"><?php _e('Advanced protection using 6G Blacklist rules. Provides comprehensive security against XSS, SQL injection, file inclusion, and more.', 'morden-security'); ?></p>
+
+                                <label>
+                                    <input type="radio" name="ms_settings[firewall_mode]" value="basic" <?php checked($options['firewall_mode'] ?? '6g', 'basic'); ?> />
+                                    <strong><?php _e('Basic Firewall', 'morden-security'); ?></strong>
+                                </label>
+                                <p class="description"><?php _e('Lightweight protection with essential security rules. Use if 6G Firewall causes compatibility issues.', 'morden-security'); ?></p>
+
+                                <label>
+                                    <input type="radio" name="ms_settings[firewall_mode]" value="disabled" <?php checked($options['firewall_mode'] ?? '6g', 'disabled'); ?> />
+                                    <strong><?php _e('Disabled', 'morden-security'); ?></strong>
+                                </label>
+                                <p class="description"><?php _e('Turn off firewall protection completely. Not recommended for production sites.', 'morden-security'); ?></p>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
                 <table class="form-table">
                     <tr>
-                        <th scope="row"><?php _e('Enable Firewall', 'morden-security'); ?></th>
+                        <th scope="row"><?php _e('Auto Block Violators', 'morden-security'); ?></th>
                         <td>
                             <label>
-                                <input type="checkbox" name="ms_settings[enable_firewall]" value="1" <?php checked(isset($options['enable_firewall']) ? $options['enable_firewall'] : 1, 1); ?> />
-                                <?php _e('Enable basic firewall protection', 'morden-security'); ?>
+                                <input type="checkbox" name="ms_settings[firewall_auto_block_ip]" value="1" <?php checked(isset($options['firewall_auto_block_ip']) ? $options['firewall_auto_block_ip'] : 1, 1); ?> />
+                                <?php _e('Automatically block IPs that trigger firewall rules', 'morden-security'); ?>
                             </label>
+                            <p class="description"><?php _e('IPs will be temporarily blocked when they trigger security rules.', 'morden-security'); ?></p>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><?php _e('Block Suspicious Requests', 'morden-security'); ?></th>
+                        <th scope="row"><?php _e('Custom Block Page', 'morden-security'); ?></th>
                         <td>
                             <label>
-                                <input type="checkbox" name="ms_settings[block_suspicious_requests]" value="1" <?php checked(isset($options['block_suspicious_requests']) ? $options['block_suspicious_requests'] : 1, 1); ?> />
-                                <?php _e('Block requests with suspicious patterns', 'morden-security'); ?>
+                                <input type="checkbox" name="ms_settings[firewall_custom_block_page]" value="1" <?php checked(isset($options['firewall_custom_block_page']) ? $options['firewall_custom_block_page'] : 0, 1); ?> />
+                                <?php _e('Show custom block page instead of simple error', 'morden-security'); ?>
                             </label>
+                            <br><br>
+                            <label for="firewall_block_message"><?php _e('Block Message:', 'morden-security'); ?></label><br>
+                            <textarea name="ms_settings[firewall_block_message]" id="firewall_block_message" rows="3" cols="50" class="large-text"><?php echo esc_textarea($options['firewall_block_message'] ?? 'Access Denied - Your request has been blocked by our security system.'); ?></textarea>
+                            <p class="description"><?php _e('Custom message to show when requests are blocked.', 'morden-security'); ?></p>
                         </td>
                     </tr>
                     <tr>
@@ -245,6 +323,25 @@ $options = get_option('ms_settings', array());
                         </td>
                     </tr>
                 </table>
+
+                <div class="ms-firewall-compatibility">
+                    <h3><?php _e('Compatibility Notes', 'morden-security'); ?></h3>
+                    <div class="ms-compatibility-info">
+                        <p><strong><?php _e('6G Firewall Compatibility:', 'morden-security'); ?></strong></p>
+                        <ul>
+                            <li><?php _e('If using NextCloud, some features may require Basic Firewall mode', 'morden-security'); ?></li>
+                            <li><?php _e('CGI applications may need Basic Firewall mode', 'morden-security'); ?></li>
+                            <li><?php _e('If experiencing issues, try Basic Firewall or contact support', 'morden-security'); ?></li>
+                        </ul>
+
+                        <p><strong><?php _e('Automatic Adjustments:', 'morden-security'); ?></strong></p>
+                        <ul>
+                            <li><?php _e('6G Firewall automatically disables when Bot Protection is enabled to avoid conflicts', 'morden-security'); ?></li>
+                            <li><?php _e('Basic Firewall is used as fallback when 6G mode has compatibility issues', 'morden-security'); ?></li>
+                            <li><?php _e('Admin and AJAX requests are automatically excluded from firewall checks', 'morden-security'); ?></li>
+                        </ul>
+                    </div>
+                </div>
             </div>
 
             <div id="scan-settings" class="tab-content">

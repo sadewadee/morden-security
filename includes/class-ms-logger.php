@@ -1,9 +1,14 @@
 <?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 class MS_Logger {
     private static $instance = null;
     private $log_queue = array();
     private $batch_size = 50;
-    private $flush_interval = 30; // seconds
+    private $flush_interval = 30;
+    private $core; // Add core instance
 
     public static function get_instance() {
         if (null === self::$instance) {
@@ -13,13 +18,13 @@ class MS_Logger {
     }
 
     private function __construct() {
-        // Schedule batch processing
+        $this->core = MS_Core::get_instance(); // Initialize core instance
+
         add_action('wp_footer', array($this, 'flush_log_queue'));
         add_action('admin_footer', array($this, 'flush_log_queue'));
         add_action('wp_ajax_nopriv_ms_flush_logs', array($this, 'ajax_flush_logs'));
         add_action('wp_ajax_ms_flush_logs', array($this, 'ajax_flush_logs'));
 
-        // Background processing
         if (!wp_next_scheduled('ms_process_log_queue')) {
             wp_schedule_event(time(), 'every_minute', 'ms_process_log_queue');
         }
@@ -34,12 +39,11 @@ class MS_Logger {
             'user_id' => $user_id,
             'country' => $country,
             'path' => $path,
-            'ip_address' => $this->get_user_ip(),
+            'ip_address' => $this->core->ms_get_user_ip(), // Use core instance
             'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
             'timestamp' => current_time('mysql')
         );
 
-        // Auto-flush if queue is full
         if (count($this->log_queue) >= $this->batch_size) {
             $this->flush_log_queue();
         }
@@ -50,7 +54,6 @@ class MS_Logger {
             return;
         }
 
-        // Use background AJAX for non-blocking processing
         wp_remote_post(admin_url('admin-ajax.php'), array(
             'timeout' => 1,
             'blocking' => false,
@@ -103,5 +106,12 @@ class MS_Logger {
                 VALUES " . implode(', ', $placeholders);
 
         $wpdb->query($wpdb->prepare($sql, $values));
+    }
+
+    public function process_log_queue() {
+        if (!empty($this->log_queue)) {
+            $this->batch_insert_logs($this->log_queue);
+            $this->log_queue = array();
+        }
     }
 }

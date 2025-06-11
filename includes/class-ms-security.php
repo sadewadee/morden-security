@@ -78,16 +78,46 @@ class MS_Security {
             add_filter('authenticate', array($this, 'ms_verify_turnstile'), 20, 3);
         }
 
-        if ($this->core->ms_get_option('enable_firewall', 1)) {
-            add_action('init', array($this, 'ms_firewall_check'));
-        }
-
         if ($this->core->ms_get_option('scan_uploads', 1)) {
             add_filter('wp_handle_upload_prefilter', array($this, 'ms_scan_upload'));
         }
+    }
 
-        if ($this->core->ms_get_option('block_suspicious_requests', 1)) {
-            add_action('init', array($this, 'ms_block_suspicious_requests'));
+    public function ms_bot_protection() {
+        if ($this->core->ms_get_option('enable_6g_firewall', 1)) {
+            return;
+        }
+
+        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+
+        $bad_bots = array(
+            'sqlmap', 'nikto', 'nessus', 'openvas', 'w3af', 'skipfish',
+            'grabber', 'wpscan', 'dirbuster', 'nmap', 'masscan', 'zmap',
+            'shodan', 'censys'
+        );
+
+        foreach ($bad_bots as $bot) {
+            if (stripos($user_agent, $bot) !== false) {
+                $this->core->ms_log_security_event('bot_blocked',
+                    'Malicious bot blocked: ' . $bot,
+                    'medium'
+                );
+
+                wp_die(__('Access denied for security reasons.', 'morden-security'),
+                    __('Bot Blocked', 'morden-security'),
+                    array('response' => 403));
+            }
+        }
+
+        if (empty($user_agent)) {
+            $this->core->ms_log_security_event('empty_user_agent',
+                'Request with empty user agent blocked',
+                'low'
+            );
+
+            wp_die(__('Access denied for security reasons.', 'morden-security'),
+                __('Invalid Request', 'morden-security'),
+                array('response' => 403));
         }
     }
 
@@ -255,63 +285,6 @@ class MS_Security {
 
     public function ms_close_pings_for_old_posts($open, $post_id) {
         return false; // Always disable pings
-    }
-
-    public function ms_bot_protection() {
-        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-
-        // List of malicious bots and crawlers
-        $bad_bots = array(
-            'semrushbot', 'ahrefsbot', 'dotbot', 'rogerbot', 'exabot', 'facebookexternalhit',
-            'mj12bot', 'majestic12', 'blekkobot', 'ezooms', 'linkdexbot', 'lipperhey',
-            'siteexplorer', 'sistrix', 'searchmetricsbot', 'wbsearchbot', 'socialbm',
-            'socialradarbot', 'tweetmemebot', 'yandexbot', 'yandexmetrica', 'yandeximages',
-            'sqlmap', 'nikto', 'nessus', 'openvas', 'w3af', 'skipfish', 'grabber',
-            'wpscan', 'dirbuster', 'nmap', 'masscan', 'zmap', 'shodan', 'censys'
-        );
-
-        // Check user agent
-        foreach ($bad_bots as $bot) {
-            if (stripos($user_agent, $bot) !== false) {
-                $this->core->ms_log_security_event('bot_blocked',
-                    'Malicious bot blocked: ' . $bot,
-                    'medium'
-                );
-
-                // Block the bot
-                wp_die(__('Access denied for security reasons.', 'morden-security'),
-                       __('Bot Blocked', 'morden-security'),
-                       array('response' => 403));
-            }
-        }
-
-        // Check for empty user agent
-        if (empty($user_agent)) {
-            $this->core->ms_log_security_event('empty_user_agent',
-                'Request with empty user agent blocked',
-                'low'
-            );
-
-            wp_die(__('Access denied for security reasons.', 'morden-security'),
-                   __('Invalid Request', 'morden-security'),
-                   array('response' => 403));
-        }
-
-        // Check for suspicious patterns in user agent
-        $suspicious_patterns = array(
-            'libwww', 'wget', 'curl', 'python', 'perl', 'java', 'go-http-client',
-            'scanner', 'bot', 'crawler', 'spider', 'scraper', 'harvester'
-        );
-
-        foreach ($suspicious_patterns as $pattern) {
-            if (stripos($user_agent, $pattern) !== false && !$this->ms_is_legitimate_bot($user_agent)) {
-                $this->core->ms_log_security_event('suspicious_user_agent',
-                    'Suspicious user agent: ' . $user_agent,
-                    'medium'
-                );
-                break;
-            }
-        }
     }
 
     private function ms_is_legitimate_bot($user_agent) {
