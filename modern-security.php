@@ -1,10 +1,10 @@
 <?php
 /**
  * Plugin Name: Morden Security
- * Plugin URI: https://mordenhost.com/morden-security/
- * Description: Advanced WordPress security plugin with comprehensive protection features including brute force protection, security headers, login customization, and Cloudflare Turnstile integration.
- * Version: 1.0.1-beta
- * Author: Morden Security Team
+ * Plugin URI: https://github.com/sadewadee/morden-security
+ * Description: Comprehensive WordPress security plugin with advanced protection features including firewall, brute force protection, security headers, file integrity monitoring, Hide Login URL, Database Prefix Changer, and File Permission Checker.
+ * Version: 1.3.0
+ * Author: Mordenhost Team
  * Author URI: https://mordenhost.com
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -16,19 +16,16 @@
  * Network: false
  */
 
-// Prevent direct access
 if (!defined('ABSPATH')) {
     exit;
 }
 
-// Define plugin constants
-define('MS_VERSION', '1.0.1-beta');
-define('MS_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('MS_VERSION', '1.3.0');
 define('MS_PLUGIN_PATH', plugin_dir_path(__FILE__));
+define('MS_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('MS_PLUGIN_BASENAME', plugin_basename(__FILE__));
 
-// Main plugin class
-class MS_Morden_Security {
+class Morden_Security {
 
     private static $instance = null;
 
@@ -40,30 +37,22 @@ class MS_Morden_Security {
     }
 
     private function __construct() {
-        add_action('plugins_loaded', array($this, 'ms_init'));
         register_activation_hook(__FILE__, array($this, 'ms_activate'));
         register_deactivation_hook(__FILE__, array($this, 'ms_deactivate'));
+
+        add_action('plugins_loaded', array($this, 'ms_init'));
     }
 
     public function ms_init() {
-        // Load text domain
-        load_plugin_textdomain('morden-security', false, dirname(MS_PLUGIN_BASENAME) . '/languages');
+        load_plugin_textdomain('morden-security', false, dirname(plugin_basename(__FILE__)) . '/languages');
 
-        // Include required files
         $this->ms_include_files();
-
-        // Initialize components
-        MS_Core::get_instance();
-        MS_Security::get_instance();
-
-        if (is_admin()) {
-            MS_Admin::get_instance();
-        }
-
-        MS_Customizer::get_instance();
+        $this->ms_init_components();
     }
 
     private function ms_include_files() {
+        require_once MS_PLUGIN_PATH . 'includes/class-ms-database.php';
+        require_once MS_PLUGIN_PATH . 'includes/class-ms-version.php';
         require_once MS_PLUGIN_PATH . 'includes/class-ms-core.php';
         require_once MS_PLUGIN_PATH . 'includes/class-ms-security.php';
         require_once MS_PLUGIN_PATH . 'includes/class-ms-customizer.php';
@@ -73,8 +62,17 @@ class MS_Morden_Security {
         }
     }
 
+    private function ms_init_components() {
+        MS_Core::get_instance();
+        MS_Security::get_instance();
+        MS_Customizer::get_instance();
+
+        if (is_admin()) {
+            MS_Admin::get_instance();
+        }
+    }
+
     public function ms_activate() {
-        // Create default options
         $default_options = array(
             'disable_file_editor' => 1,
             'force_ssl' => 1,
@@ -96,160 +94,54 @@ class MS_Morden_Security {
             'scan_uploads' => 1,
             'max_logs' => 1000,
             'max_days_retention' => 30,
-            'enable_geolocation' => 1
+            'enable_geolocation' => 1,
+            'block_php_uploads' => 1,
+            'disable_pingbacks' => 1,
+            'enable_bot_protection' => 1,
+            'block_author_scans' => 1,
+            'enable_file_integrity' => 1,
+            'hide_login_url' => 0,
+            'custom_login_url' => 'secure-login'
         );
 
         add_option('ms_settings', $default_options);
 
-        // Create necessary tables
-        $this->ms_create_tables();
-
-        // Set default security rules
+        MS_Database::create_all_tables();
         $this->ms_set_default_security_rules();
+        $this->ms_create_backup_directory();
     }
 
     public function ms_deactivate() {
-        // Clean up scheduled events
         wp_clear_scheduled_hook('ms_cleanup_login_attempts');
         wp_clear_scheduled_hook('ms_security_scan');
-    }
+        wp_clear_scheduled_hook('ms_integrity_check');
 
-    private function ms_create_tables() {
-        global $wpdb;
-
-        $charset_collate = $wpdb->get_charset_collate();
-
-        // Login attempts table
-        $table_name = $wpdb->prefix . 'ms_login_attempts';
-        $sql = "CREATE TABLE $table_name (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
-            ip_address varchar(45) NOT NULL,
-            username varchar(255) DEFAULT NULL,
-            attempts int(11) NOT NULL DEFAULT 0,
-            locked_until datetime DEFAULT NULL,
-            last_attempt datetime DEFAULT CURRENT_TIMESTAMP,
-            user_agent text DEFAULT NULL,
-            PRIMARY KEY (id),
-            UNIQUE KEY ip_address (ip_address),
-            KEY username (username),
-            KEY last_attempt (last_attempt)
-        ) $charset_collate;";
-
-        // Security log table with country and path
-        $log_table = $wpdb->prefix . 'ms_security_log';
-        $sql2 = "CREATE TABLE $log_table (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
-            event_type varchar(50) NOT NULL,
-            ip_address varchar(45) NOT NULL,
-            user_id bigint(20) DEFAULT NULL,
-            description text NOT NULL,
-            severity enum('low','medium','high','critical') DEFAULT 'medium',
-            country varchar(100) DEFAULT NULL,
-            path varchar(255) DEFAULT NULL,
-            user_agent text DEFAULT NULL,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY event_type (event_type),
-            KEY ip_address (ip_address),
-            KEY created_at (created_at),
-            KEY severity (severity),
-            KEY country (country)
-        ) $charset_collate;";
-
-        // Blocked IPs table
-        $blocked_table = $wpdb->prefix . 'ms_blocked_ips';
-        $sql3 = "CREATE TABLE $blocked_table (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
-            ip_address varchar(45) NOT NULL,
-            reason varchar(255) NOT NULL,
-            blocked_until datetime DEFAULT NULL,
-            permanent tinyint(1) DEFAULT 0,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            UNIQUE KEY ip_address (ip_address)
-        ) $charset_collate;";
-
-        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($sql);
-        dbDelta($sql2);
-        dbDelta($sql3);
-
-        // Update existing tables if needed
-        $this->ms_update_existing_tables();
-    }
-
-    private function ms_update_existing_tables() {
-        global $wpdb;
-
-        $log_table = $wpdb->prefix . 'ms_security_log';
-
-        // Check if country column exists
-        $country_exists = $wpdb->get_results($wpdb->prepare(
-            "SHOW COLUMNS FROM $log_table LIKE %s",
-            'country'
-        ));
-
-        if (empty($country_exists)) {
-            $wpdb->query("ALTER TABLE $log_table ADD COLUMN country varchar(100) DEFAULT NULL");
-            $wpdb->query("ALTER TABLE $log_table ADD INDEX country (country)");
-        }
-
-        // Check if path column exists
-        $path_exists = $wpdb->get_results($wpdb->prepare(
-            "SHOW COLUMNS FROM $log_table LIKE %s",
-            'path'
-        ));
-
-        if (empty($path_exists)) {
-            $wpdb->query("ALTER TABLE $log_table ADD COLUMN path varchar(255) DEFAULT NULL");
-        }
-
-        // Check if user_agent column exists
-        $ua_exists = $wpdb->get_results($wpdb->prepare(
-            "SHOW COLUMNS FROM $log_table LIKE %s",
-            'user_agent'
-        ));
-
-        if (empty($ua_exists)) {
-            $wpdb->query("ALTER TABLE $log_table ADD COLUMN user_agent text DEFAULT NULL");
-        }
+        wp_cache_flush();
     }
 
     private function ms_set_default_security_rules() {
-        // Add default .htaccess rules if possible
-        $this->ms_update_htaccess_rules();
+        $upload_dir = wp_upload_dir();
+        $htaccess_file = $upload_dir['basedir'] . '/.htaccess';
+
+        if (!file_exists($htaccess_file)) {
+            $htaccess_content = "Options -Indexes\n";
+            $htaccess_content .= "<Files *.php>\n";
+            $htaccess_content .= "deny from all\n";
+            $htaccess_content .= "</Files>\n";
+
+            file_put_contents($htaccess_file, $htaccess_content);
+        }
     }
 
-    private function ms_update_htaccess_rules() {
-        if (!function_exists('get_home_path')) {
-            require_once(ABSPATH . 'wp-admin/includes/file.php');
-        }
+    private function ms_create_backup_directory() {
+        $backup_dir = WP_CONTENT_DIR . '/ms-backups';
+        if (!file_exists($backup_dir)) {
+            wp_mkdir_p($backup_dir);
 
-        $htaccess_file = get_home_path() . '.htaccess';
-
-        if (is_writable($htaccess_file)) {
-            $rules = "\n# BEGIN Morden Security\n";
-            $rules .= "# Disable directory browsing\n";
-            $rules .= "Options -Indexes\n";
-            $rules .= "# Protect wp-config.php\n";
-            $rules .= "<files wp-config.php>\n";
-            $rules .= "order allow,deny\n";
-            $rules .= "deny from all\n";
-            $rules .= "</files>\n";
-            $rules .= "# Protect .htaccess\n";
-            $rules .= "<files .htaccess>\n";
-            $rules .= "order allow,deny\n";
-            $rules .= "deny from all\n";
-            $rules .= "</files>\n";
-            $rules .= "# END Morden Security\n\n";
-
-            $current_content = file_get_contents($htaccess_file);
-            if (strpos($current_content, '# BEGIN Morden Security') === false) {
-                file_put_contents($htaccess_file, $rules . $current_content);
-            }
+            $htaccess_content = "Order deny,allow\nDeny from all\n";
+            file_put_contents($backup_dir . '/.htaccess', $htaccess_content);
         }
     }
 }
 
-// Initialize the plugin
-MS_Morden_Security::get_instance();
+Morden_Security::get_instance();

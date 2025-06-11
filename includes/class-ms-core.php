@@ -30,8 +30,14 @@ class MS_Core {
             wp_schedule_event(time(), 'twicedaily', 'ms_security_scan');
         }
 
+        // Schedule integrity check
+        if (!wp_next_scheduled('ms_integrity_check')) {
+            wp_schedule_event(time(), 'daily', 'ms_integrity_check');
+        }
+
         add_action('ms_cleanup_login_attempts', array($this, 'ms_cleanup_old_attempts'));
         add_action('ms_security_scan', array($this, 'ms_run_security_scan'));
+        add_action('ms_integrity_check', array($this, 'ms_run_integrity_check'));
     }
 
     public function ms_get_option($key, $default = '') {
@@ -77,6 +83,237 @@ class MS_Core {
         $this->ms_scan_plugins_themes();
     }
 
+    public function ms_run_integrity_check() {
+        if (!$this->ms_get_option('enable_file_integrity', 1)) {
+            return;
+        }
+
+        $this->ms_check_wordpress_core_integrity();
+        $this->ms_check_plugins_integrity();
+        $this->ms_check_themes_integrity();
+    }
+
+    public function ms_check_wordpress_core_integrity() {
+        // Get WordPress version
+        global $wp_version;
+
+        // Get core files checksums from WordPress.org API
+        $response = wp_remote_get("https://api.wordpress.org/core/checksums/1.0/?version={$wp_version}");
+
+        if (is_wp_error($response)) {
+            $this->ms_log_security_event('integrity_check_failed',
+                'Failed to fetch WordPress core checksums from API',
+                'medium'
+            );
+            return;
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $checksums = json_decode($body, true);
+
+        if (!isset($checksums['checksums'])) {
+            $this->ms_log_security_event('integrity_check_failed',
+                'Invalid checksums data received from WordPress.org',
+                'medium'
+            );
+            return;
+        }
+
+        $core_files = $checksums['checksums'];
+        $modified_files = array();
+        $missing_files = array();
+
+        foreach ($core_files as $file => $expected_hash) {
+            $file_path = ABSPATH . $file;
+
+            if (!file_exists($file_path)) {
+                $missing_files[] = $file;
+                continue;
+            }
+
+            $actual_hash = md5_file($file_path);
+            if ($actual_hash !== $expected_hash) {
+                $modified_files[] = $file;
+            }
+        }
+
+        // Log results
+        if (!empty($modified_files)) {
+            $this->ms_log_security_event('core_files_modified',
+                'WordPress core files modified: ' . implode(', ', $modified_files),
+                'critical'
+            );
+        }
+
+        if (!empty($missing_files)) {
+            $this->ms_log_security_event('core_files_missing',
+                'WordPress core files missing: ' . implode(', ', $missing_files),
+                'high'
+            );
+        }
+
+        if (empty($modified_files) && empty($missing_files)) {
+            $this->ms_log_security_event('integrity_check_passed',
+                'WordPress core integrity check passed - all files intact',
+                'low'
+            );
+        }
+
+        // Store results for admin display
+        update_option('ms_integrity_check_results', array(
+            'last_check' => current_time('mysql'),
+            'wp_version' => $wp_version,
+            'modified_files' => $modified_files,
+            'missing_files' => $missing_files,
+            'status' => empty($modified_files) && empty($missing_files) ? 'clean' : 'infected'
+        ));
+    }
+
+    public function ms_check_plugins_integrity() {
+        $active_plugins = get_option('active_plugins', array());
+        $plugin_issues = array();
+
+        foreach ($active_plugins as $plugin_file) {
+            $plugin_path = WP_PLUGIN_DIR . '/' . dirname($plugin_file);
+            $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $plugin_file);
+
+            // Check if plugin is from WordPress.org repository
+            $response = wp_remote_get("https://api.wordpress.org/plugins/info/1.0/" . dirname($plugin_file) . ".json");
+
+            if (!is_wp_error($response)) {
+                $body = wp_remote_retrieve_body($response);
+                $plugin_info = json_decode($body, true);
+
+                if (isset($plugin_info['version']) && $plugin_info['version'] !== $plugin_data['Version']) {
+                    $plugin_issues[] = array(
+                        'plugin' => $plugin_data['Name'],
+                        'issue' => 'outdated',
+                        'current' => $plugin_data['Version'],
+                        'latest' => $plugin_info['version']
+                    );
+                }
+            }
+
+            // Check for suspicious files in plugin directory
+            $suspicious_files = $this->ms_scan_directory_for_malware($plugin_path);
+            if (!empty($suspicious_files)) {
+                $plugin_issues[] = array(
+                    'plugin' => $plugin_data['Name'],
+                    'issue' => 'suspicious_files',
+                    'files' => $suspicious_files
+                );
+            }
+        }
+
+        if (!empty($plugin_issues)) {
+            $this->ms_log_security_event('plugin_integrity_issues',
+                'Plugin integrity issues detected: ' . count($plugin_issues) . ' plugins affected',
+                'medium'
+            );
+        }
+
+        update_option('ms_plugin_integrity_results', array(
+            'last_check' => current_time('mysql'),
+            'issues' => $plugin_issues
+        ));
+    }
+
+    public function ms_check_themes_integrity() {
+        $themes = wp_get_themes();
+        $theme_issues = array();
+
+        foreach ($themes as $theme_slug => $theme) {
+            $theme_path = $theme->get_stylesheet_directory();
+
+            // Check for suspicious files in theme directory
+            $suspicious_files = $this->ms_scan_directory_for_malware($theme_path);
+            if (!empty($suspicious_files)) {
+                $theme_issues[] = array(
+                    'theme' => $theme->get('Name'),
+                    'issue' => 'suspicious_files',
+                    'files' => $suspicious_files
+                );
+            }
+        }
+
+        if (!empty($theme_issues)) {
+            $this->ms_log_security_event('theme_integrity_issues',
+                'Theme integrity issues detected: ' . count($theme_issues) . ' themes affected',
+                'medium'
+            );
+        }
+
+        update_option('ms_theme_integrity_results', array(
+            'last_check' => current_time('mysql'),
+            'issues' => $theme_issues
+        ));
+    }
+
+    private function ms_scan_directory_for_malware($directory) {
+        $suspicious_files = array();
+
+        if (!is_dir($directory)) {
+            return $suspicious_files;
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+
+            $file_path = $file->getPathname();
+            $extension = strtolower(pathinfo($file_path, PATHINFO_EXTENSION));
+
+            // Only scan PHP files
+            if ($extension !== 'php') {
+                continue;
+            }
+
+            // Skip large files
+            if (filesize($file_path) > 5 * 1024 * 1024) { // 5MB
+                continue;
+            }
+
+            $content = file_get_contents($file_path);
+            if ($this->ms_contains_malware_signatures($content)) {
+                $suspicious_files[] = str_replace($directory, '', $file_path);
+            }
+        }
+
+        return $suspicious_files;
+    }
+
+    private function ms_contains_malware_signatures($content) {
+        $malware_signatures = array(
+            '/eval\s*\(\s*base64_decode/i',
+            '/eval\s*\(\s*gzinflate/i',
+            '/eval\s*\(\s*str_rot13/i',
+            '/system\s*\(\s*base64_decode/i',
+            '/exec\s*\(\s*base64_decode/i',
+            '/shell_exec\s*\(\s*base64_decode/i',
+            '/passthru\s*\(\s*base64_decode/i',
+            '/file_get_contents\s*\(\s*["\']https?:\/\/[^"\']*["\'].*eval/i',
+            '/\$_POST\s*\[\s*["\'][^"\']*["\']\s*\]\s*\(\s*\$_POST/i',
+            '/\$_GET\s*\[\s*["\'][^"\']*["\']\s*\]\s*\(\s*\$_GET/i',
+            '/preg_replace\s*\(\s*["\'].*\/e["\'].*\$.*\)/i',
+            '/assert\s*\(\s*\$_(GET|POST|REQUEST)/i',
+            '/create_function\s*\(\s*["\'][^"\']*["\'].*eval/i'
+        );
+
+        foreach ($malware_signatures as $signature) {
+            if (preg_match($signature, $content)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Existing methods remain the same...
     private function ms_scan_core_files() {
         $upload_dir = wp_upload_dir();
 
@@ -86,9 +323,6 @@ class MS_Core {
 
         // Whitelist folders yang aman
         $safe_folders = $this->ms_get_safe_folders();
-
-        // Whitelist file extensions yang legitimate
-        $safe_extensions = $this->ms_get_safe_extensions();
 
         // Suspicious extensions yang perlu dicek
         $suspicious_extensions = array('php', 'php3', 'php4', 'php5', 'phtml', 'js', 'html', 'htm');
@@ -208,28 +442,6 @@ class MS_Core {
         return array_merge($default_safe_folders, $custom_safe_folders);
     }
 
-    private function ms_get_safe_extensions() {
-        return array(
-            // Images
-            'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico',
-
-            // Documents
-            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'rtf',
-
-            // Archives
-            'zip', 'rar', '7z', 'tar', 'gz',
-
-            // Audio/Video
-            'mp3', 'mp4', 'avi', 'mov', 'wmv', 'flv', 'wav', 'ogg',
-
-            // Fonts
-            'ttf', 'otf', 'woff', 'woff2', 'eot',
-
-            // Data files
-            'json', 'xml', 'csv', 'log', 'css'
-        );
-    }
-
     private function ms_is_in_safe_folder($file_path, $safe_folders) {
         foreach ($safe_folders as $safe_folder) {
             if (strpos($file_path, $safe_folder) !== false) {
@@ -290,45 +502,8 @@ class MS_Core {
             return false;
         }
 
-        // Basic malicious PHP patterns
-        $basic_patterns = array(
-            '/eval\s*\(/i',
-            '/base64_decode\s*\(/i',
-            '/shell_exec\s*\(/i',
-            '/system\s*\(/i',
-            '/exec\s*\(/i',
-            '/passthru\s*\(/i',
-        );
-
-        // Advanced malicious patterns
-        $advanced_patterns = array(
-            '/file_get_contents\s*\(\s*["\']https?:\/\//i',
-            '/curl_exec\s*\(/i',
-            '/\$_GET\s*\[\s*["\'][^"\']*["\'].*eval/i',
-            '/\$_POST\s*\[\s*["\'][^"\']*["\'].*eval/i',
-            '/preg_replace.*\/e["\'].*\$/i',
-            '/assert\s*\(/i',
-            '/create_function\s*\(/i',
-        );
-
-        $patterns_to_check = $basic_patterns;
-
-        if ($sensitivity === 'medium' || $sensitivity === 'high') {
-            $patterns_to_check = array_merge($patterns_to_check, $advanced_patterns);
-        }
-
-        foreach ($patterns_to_check as $pattern) {
-            if (preg_match($pattern, $content)) {
-                return true;
-            }
-        }
-
-        // Check untuk obfuscated code (hanya pada sensitivity high)
-        if ($sensitivity === 'high' && $this->ms_is_obfuscated_php($content)) {
-            return true;
-        }
-
-        return false;
+        // Use the same malware signatures from integrity check
+        return $this->ms_contains_malware_signatures($content);
     }
 
     private function ms_scan_js_content($file_path, $sensitivity) {
@@ -391,29 +566,6 @@ class MS_Core {
         return false;
     }
 
-    private function ms_is_obfuscated_php($content) {
-        // Check untuk heavily obfuscated code
-        $obfuscation_indicators = array(
-            // Too many base64 strings
-            substr_count($content, 'base64') > 5,
-
-            // Too many eval calls
-            substr_count($content, 'eval') > 3,
-
-            // Excessive use of chr() function
-            substr_count($content, 'chr(') > 10,
-
-            // Very long lines (often sign of obfuscation)
-            max(array_map('strlen', explode("\n", $content))) > 1000,
-
-            // High ratio of non-alphanumeric characters
-            (strlen($content) - strlen(preg_replace('/[^a-zA-Z0-9]/', '', $content))) / strlen($content) > 0.7
-        );
-
-        // Return true if 2 or more indicators are present
-        return count(array_filter($obfuscation_indicators)) >= 2;
-    }
-
     private function ms_check_user_permissions() {
         // Check for users with admin privileges
         $users = get_users(array('role' => 'administrator'));
@@ -441,9 +593,13 @@ class MS_Core {
     }
 
     public function ms_log_security_event($event_type, $description, $severity = 'medium', $user_id = null, $country = null, $path = null) {
-        global $wpdb;
+        $rate_limiter = MS_Rate_Limiter::get_instance();
+        $ip_address = $this->ms_get_user_ip();
 
-        $table_name = $wpdb->prefix . 'ms_security_log';
+        // Check if we should log this event
+        if (!$rate_limiter->should_log_event($event_type, $ip_address)) {
+            return;
+        }
 
         // Get country if not provided and geolocation is enabled
         if (!$country && $this->ms_get_option('enable_geolocation', 1)) {
@@ -455,20 +611,9 @@ class MS_Core {
             $path = $_SERVER['REQUEST_URI'] ?? '';
         }
 
-        $wpdb->insert(
-            $table_name,
-            array(
-                'event_type' => sanitize_text_field($event_type),
-                'ip_address' => $this->ms_get_user_ip(),
-                'user_id' => $user_id,
-                'description' => sanitize_text_field($description),
-                'severity' => sanitize_text_field($severity),
-                'country' => sanitize_text_field($country),
-                'path' => sanitize_text_field($path),
-                'user_agent' => sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? ''),
-                'created_at' => current_time('mysql')
-            )
-        );
+        // Use async logger
+        $logger = MS_Logger::get_instance();
+        $logger->queue_log($event_type, $description, $severity, $user_id, $country, $path);
     }
 
     public function ms_get_country_from_ip($ip = null) {

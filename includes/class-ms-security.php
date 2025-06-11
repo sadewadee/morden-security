@@ -21,60 +21,354 @@ class MS_Security {
     }
 
     private function ms_init_security_features() {
-        // Early security checks
         add_action('init', array($this, 'ms_early_security_checks'), 1);
 
-        // Disable file editor
         if ($this->core->ms_get_option('disable_file_editor', 1)) {
             if (!defined('DISALLOW_FILE_EDIT')) {
                 define('DISALLOW_FILE_EDIT', true);
             }
         }
 
-        // Force SSL
         if ($this->core->ms_get_option('force_ssl', 1)) {
             add_action('init', array($this, 'ms_force_ssl'));
         }
 
-        // Disable XML-RPC
         if ($this->core->ms_get_option('disable_xmlrpc', 1)) {
             add_filter('xmlrpc_enabled', '__return_false');
             add_filter('wp_headers', array($this, 'ms_remove_xmlrpc_headers'));
             add_action('xmlrpc_call', array($this, 'ms_log_xmlrpc_attempt'));
         }
 
-        // Login protection
+        if ($this->core->ms_get_option('block_php_uploads', 1)) {
+            add_action('init', array($this, 'ms_block_php_uploads'));
+        }
+
+        if ($this->core->ms_get_option('disable_pingbacks', 1)) {
+            add_action('init', array($this, 'ms_disable_pingbacks'));
+        }
+
+        if ($this->core->ms_get_option('enable_bot_protection', 1)) {
+            add_action('init', array($this, 'ms_bot_protection'));
+        }
+
+        if ($this->core->ms_get_option('block_author_scans', 1)) {
+            add_action('init', array($this, 'ms_block_author_scans'));
+        }
+
+        if ($this->core->ms_get_option('hide_login_url', 0)) {
+            add_action('init', array($this, 'ms_hide_login_url'));
+            add_filter('site_url', array($this, 'ms_filter_site_url'), 10, 4);
+            add_filter('wp_redirect', array($this, 'ms_filter_wp_redirect'), 10, 2);
+            add_filter('login_url', array($this, 'ms_filter_login_url'), 10, 3);
+        }
+
         if ($this->core->ms_get_option('limit_login_attempts', 1)) {
             add_action('wp_login_failed', array($this, 'ms_handle_failed_login'));
             add_filter('authenticate', array($this, 'ms_check_login_attempts'), 30, 3);
             add_action('wp_login', array($this, 'ms_handle_successful_login'), 10, 2);
         }
 
-        // Security headers
         if ($this->core->ms_get_option('enable_security_headers', 1)) {
             add_action('send_headers', array($this, 'ms_add_security_headers'));
         }
 
-        // Cloudflare Turnstile
         if ($this->core->ms_get_option('turnstile_enabled', 0)) {
             add_action('login_form', array($this, 'ms_add_turnstile_to_login'));
             add_action('register_form', array($this, 'ms_add_turnstile_to_register'));
             add_filter('authenticate', array($this, 'ms_verify_turnstile'), 20, 3);
         }
 
-        // Firewall
         if ($this->core->ms_get_option('enable_firewall', 1)) {
             add_action('init', array($this, 'ms_firewall_check'));
         }
 
-        // Upload scanning
         if ($this->core->ms_get_option('scan_uploads', 1)) {
             add_filter('wp_handle_upload_prefilter', array($this, 'ms_scan_upload'));
         }
 
-        // Block suspicious requests
         if ($this->core->ms_get_option('block_suspicious_requests', 1)) {
             add_action('init', array($this, 'ms_block_suspicious_requests'));
+        }
+    }
+
+    public function ms_hide_login_url() {
+        $custom_login = $this->core->ms_get_option('custom_login_url', 'secure-login');
+
+        $request = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        $request = trim($request, '/');
+
+        if (in_array($request, array('wp-admin', 'wp-login.php'))) {
+            if (defined('DOING_AJAX') && DOING_AJAX) {
+                return;
+            }
+
+            if (is_user_logged_in()) {
+                return;
+            }
+
+            $this->core->ms_log_security_event('login_url_blocked',
+                'Blocked access to default login URL: ' . $request,
+                'medium'
+            );
+
+            status_header(404);
+            include(get_404_template());
+            exit;
+        }
+
+        if ($request === $custom_login) {
+            require_once ABSPATH . 'wp-login.php';
+            exit;
+        }
+    }
+
+    public function ms_filter_site_url($url, $path, $scheme, $blog_id) {
+        if ($path === 'wp-login.php' || $path === '/wp-login.php') {
+            $custom_login = $this->core->ms_get_option('custom_login_url', 'secure-login');
+            return home_url($custom_login, $scheme);
+        }
+        return $url;
+    }
+
+    public function ms_filter_wp_redirect($location, $status) {
+        if (strpos($location, 'wp-login.php') !== false) {
+            $custom_login = $this->core->ms_get_option('custom_login_url', 'secure-login');
+            $location = str_replace('wp-login.php', $custom_login, $location);
+        }
+        return $location;
+    }
+
+    public function ms_filter_login_url($login_url, $redirect, $force_reauth) {
+        $custom_login = $this->core->ms_get_option('custom_login_url', 'secure-login');
+        $login_url = str_replace('wp-login.php', $custom_login, $login_url);
+        return $login_url;
+    }
+
+
+    public function ms_block_php_uploads() {
+        // Create .htaccess in uploads directory
+        $upload_dir = wp_upload_dir();
+        $htaccess_file = $upload_dir['basedir'] . '/.htaccess';
+
+        if (!file_exists($htaccess_file)) {
+            $htaccess_content = "# Morden Security - Block PHP execution\n";
+            $htaccess_content .= "<Files *.php>\n";
+            $htaccess_content .= "deny from all\n";
+            $htaccess_content .= "</Files>\n";
+            $htaccess_content .= "<Files *.php3>\n";
+            $htaccess_content .= "deny from all\n";
+            $htaccess_content .= "</Files>\n";
+            $htaccess_content .= "<Files *.php4>\n";
+            $htaccess_content .= "deny from all\n";
+            $htaccess_content .= "</Files>\n";
+            $htaccess_content .= "<Files *.php5>\n";
+            $htaccess_content .= "deny from all\n";
+            $htaccess_content .= "</Files>\n";
+            $htaccess_content .= "<Files *.phtml>\n";
+            $htaccess_content .= "deny from all\n";
+            $htaccess_content .= "</Files>\n";
+
+            file_put_contents($htaccess_file, $htaccess_content);
+        }
+
+        // Also block via upload filter
+        add_filter('wp_handle_upload_prefilter', array($this, 'ms_block_php_upload_filter'));
+    }
+
+    public function ms_block_php_upload_filter($file) {
+        $php_extensions = array('php', 'php3', 'php4', 'php5', 'phtml', 'pht');
+        $file_extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+        if (in_array($file_extension, $php_extensions)) {
+            $file['error'] = __('PHP files are not allowed for security reasons.', 'morden-security');
+            $this->core->ms_log_security_event('php_upload_blocked',
+                'Attempted PHP file upload blocked: ' . $file['name'],
+                'high'
+            );
+        }
+
+        return $file;
+    }
+
+    public function ms_disable_pingbacks() {
+        // Disable pingback functionality
+        add_filter('xmlrpc_methods', array($this, 'ms_remove_pingback_methods'));
+        add_filter('wp_headers', array($this, 'ms_remove_pingback_header'));
+        add_filter('bloginfo_url', array($this, 'ms_remove_pingback_url'), 10, 2);
+
+        // Remove pingback from HTML head
+        remove_action('wp_head', 'rsd_link');
+        remove_action('wp_head', 'wlwmanifest_link');
+
+        // Disable self-pingbacks
+        add_action('pre_ping', array($this, 'ms_disable_self_pingbacks'));
+
+        // Close comments on old posts
+        add_filter('comments_open', array($this, 'ms_close_comments_for_old_posts'), 10, 2);
+        add_filter('pings_open', array($this, 'ms_close_pings_for_old_posts'), 10, 2);
+    }
+
+    public function ms_remove_pingback_methods($methods) {
+        unset($methods['pingback.ping']);
+        unset($methods['pingback.extensions.getPingbacks']);
+        return $methods;
+    }
+
+    public function ms_remove_pingback_header($headers) {
+        unset($headers['X-Pingback']);
+        return $headers;
+    }
+
+    public function ms_remove_pingback_url($output, $show) {
+        if ($show === 'pingback_url') {
+            return '';
+        }
+        return $output;
+    }
+
+    public function ms_disable_self_pingbacks(&$links) {
+        $home = get_option('home');
+        foreach ($links as $l => $link) {
+            if (0 === strpos($link, $home)) {
+                unset($links[$l]);
+            }
+        }
+    }
+
+    public function ms_close_comments_for_old_posts($open, $post_id) {
+        if (!$open) {
+            return $open;
+        }
+
+        $post = get_post($post_id);
+        if (!$post) {
+            return $open;
+        }
+
+        // Close comments for posts older than 30 days
+        if (time() - strtotime($post->post_date_gmt) > (30 * 24 * 60 * 60)) {
+            return false;
+        }
+
+        return $open;
+    }
+
+    public function ms_close_pings_for_old_posts($open, $post_id) {
+        return false; // Always disable pings
+    }
+
+    public function ms_bot_protection() {
+        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+
+        // List of malicious bots and crawlers
+        $bad_bots = array(
+            'semrushbot', 'ahrefsbot', 'dotbot', 'rogerbot', 'exabot', 'facebookexternalhit',
+            'mj12bot', 'majestic12', 'blekkobot', 'ezooms', 'linkdexbot', 'lipperhey',
+            'siteexplorer', 'sistrix', 'searchmetricsbot', 'wbsearchbot', 'socialbm',
+            'socialradarbot', 'tweetmemebot', 'yandexbot', 'yandexmetrica', 'yandeximages',
+            'sqlmap', 'nikto', 'nessus', 'openvas', 'w3af', 'skipfish', 'grabber',
+            'wpscan', 'dirbuster', 'nmap', 'masscan', 'zmap', 'shodan', 'censys'
+        );
+
+        // Check user agent
+        foreach ($bad_bots as $bot) {
+            if (stripos($user_agent, $bot) !== false) {
+                $this->core->ms_log_security_event('bot_blocked',
+                    'Malicious bot blocked: ' . $bot,
+                    'medium'
+                );
+
+                // Block the bot
+                wp_die(__('Access denied for security reasons.', 'morden-security'),
+                       __('Bot Blocked', 'morden-security'),
+                       array('response' => 403));
+            }
+        }
+
+        // Check for empty user agent
+        if (empty($user_agent)) {
+            $this->core->ms_log_security_event('empty_user_agent',
+                'Request with empty user agent blocked',
+                'low'
+            );
+
+            wp_die(__('Access denied for security reasons.', 'morden-security'),
+                   __('Invalid Request', 'morden-security'),
+                   array('response' => 403));
+        }
+
+        // Check for suspicious patterns in user agent
+        $suspicious_patterns = array(
+            'libwww', 'wget', 'curl', 'python', 'perl', 'java', 'go-http-client',
+            'scanner', 'bot', 'crawler', 'spider', 'scraper', 'harvester'
+        );
+
+        foreach ($suspicious_patterns as $pattern) {
+            if (stripos($user_agent, $pattern) !== false && !$this->ms_is_legitimate_bot($user_agent)) {
+                $this->core->ms_log_security_event('suspicious_user_agent',
+                    'Suspicious user agent: ' . $user_agent,
+                    'medium'
+                );
+                break;
+            }
+        }
+    }
+
+    private function ms_is_legitimate_bot($user_agent) {
+        $legitimate_bots = array(
+            'googlebot', 'bingbot', 'slurp', 'duckduckbot', 'baiduspider',
+            'yandexbot', 'facebookexternalhit', 'twitterbot', 'linkedinbot',
+            'whatsapp', 'telegrambot', 'applebot', 'discordbot'
+        );
+
+        foreach ($legitimate_bots as $bot) {
+            if (stripos($user_agent, $bot) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function ms_block_author_scans() {
+        // Block author enumeration attempts
+        if (isset($_GET['author']) && is_numeric($_GET['author'])) {
+            $this->core->ms_log_security_event('author_scan_blocked',
+                'Author enumeration attempt blocked for author ID: ' . $_GET['author'],
+                'medium'
+            );
+
+            wp_die(__('Author enumeration is not allowed.', 'morden-security'),
+                   __('Access Denied', 'morden-security'),
+                   array('response' => 403));
+        }
+
+        // Block REST API user enumeration
+        add_filter('rest_endpoints', array($this, 'ms_disable_rest_user_endpoints'));
+
+        // Block author archives for non-logged in users
+        add_action('template_redirect', array($this, 'ms_block_author_archives'));
+    }
+
+    public function ms_disable_rest_user_endpoints($endpoints) {
+        if (isset($endpoints['/wp/v2/users'])) {
+            unset($endpoints['/wp/v2/users']);
+        }
+        if (isset($endpoints['/wp/v2/users/(?P<id>[\d]+)'])) {
+            unset($endpoints['/wp/v2/users/(?P<id>[\d]+)']);
+        }
+        return $endpoints;
+    }
+
+    public function ms_block_author_archives() {
+        if (is_author() && !is_user_logged_in()) {
+            $this->core->ms_log_security_event('author_archive_blocked',
+                'Author archive access blocked for non-logged user',
+                'low'
+            );
+
+            wp_redirect(home_url(), 301);
+            exit;
         }
     }
 
@@ -330,7 +624,7 @@ class MS_Security {
         $tmp_name = $file['tmp_name'];
 
         // Check file extension
-        $allowed_extensions = array('jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'txt');
+        $allowed_extensions = array('jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'txt', 'zip', 'rar');
         $file_extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
 
         if (!in_array($file_extension, $allowed_extensions)) {

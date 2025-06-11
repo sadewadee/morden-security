@@ -28,7 +28,408 @@ class MS_Admin {
         add_action('wp_ajax_ms_get_security_logs', array($this, 'ms_get_security_logs_ajax'));
         add_action('wp_ajax_ms_export_security_logs', array($this, 'ms_export_security_logs'));
         add_action('wp_ajax_ms_unblock_ip', array($this, 'ms_unblock_ip'));
+        add_action('wp_ajax_ms_block_ip_from_logs', array($this, 'ms_block_ip_from_logs'));
+        add_action('wp_ajax_ms_run_integrity_check', array($this, 'ms_run_integrity_check_ajax'));
+        add_action('wp_ajax_ms_get_detailed_report', array($this, 'ms_get_detailed_report_ajax'));
+        add_action('wp_ajax_ms_change_db_prefix', array($this, 'ms_change_db_prefix_ajax'));
+        add_action('wp_ajax_ms_check_permissions', array($this, 'ms_check_permissions_ajax'));
+        add_action('wp_ajax_ms_fix_permissions', array($this, 'ms_fix_permissions_ajax'));
     }
+
+    public function ms_change_db_prefix_ajax() {
+        check_ajax_referer('ms_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Insufficient permissions.', 'morden-security'));
+            return;
+        }
+
+        $new_prefix = sanitize_text_field($_POST['new_prefix'] ?? '');
+
+        if (empty($new_prefix) || !preg_match('/^[a-zA-Z0-9_]+$/', $new_prefix)) {
+            wp_send_json_error(__('Invalid prefix. Use only letters, numbers, and underscores.', 'morden-security'));
+            return;
+        }
+
+        if (!str_ends_with($new_prefix, '_')) {
+            $new_prefix .= '_';
+        }
+
+        try {
+            $result = $this->change_database_prefix($new_prefix);
+            if ($result) {
+                wp_send_json_success(__('Database prefix changed successfully! Please log in again.', 'morden-security'));
+            } else {
+                wp_send_json_error(__('Failed to change database prefix.', 'morden-security'));
+            }
+        } catch (Exception $e) {
+            wp_send_json_error('Error: ' . $e->getMessage());
+        }
+    }
+
+    private function change_database_prefix($new_prefix) {
+        global $wpdb;
+
+        $old_prefix = $wpdb->prefix;
+
+        $tables = $wpdb->get_results("SHOW TABLES LIKE '{$old_prefix}%'", ARRAY_N);
+
+        if (empty($tables)) {
+            throw new Exception('No tables found with current prefix.');
+        }
+
+        $backup_file = WP_CONTENT_DIR . '/ms-backups/db-backup-' . date('Y-m-d-H-i-s') . '.sql';
+        MS_Database::create_database_backup($backup_file);
+
+        foreach ($tables as $table) {
+            $old_table = $table[0];
+            $new_table = str_replace($old_prefix, $new_prefix, $old_table);
+
+            $result = $wpdb->query("RENAME TABLE `{$old_table}` TO `{$new_table}`");
+            if ($result === false) {
+                throw new Exception("Failed to rename table {$old_table}");
+            }
+        }
+
+        $this->update_wp_config_prefix($new_prefix);
+
+        if (is_multisite()) {
+            $wpdb->query($wpdb->prepare(
+                "UPDATE {$new_prefix}options SET option_name = %s WHERE option_name = %s",
+                $new_prefix . 'user_roles',
+                $old_prefix . 'user_roles'
+            ));
+        }
+
+        $this->core->ms_log_security_event('db_prefix_changed',
+            "Database prefix changed from {$old_prefix} to {$new_prefix}",
+            'high',
+            get_current_user_id()
+        );
+
+        return true;
+    }
+
+    private function update_wp_config_prefix($new_prefix) {
+        $wp_config_path = ABSPATH . 'wp-config.php';
+
+        if (!file_exists($wp_config_path) || !is_writable($wp_config_path)) {
+            throw new Exception('wp-config.php is not writable.');
+        }
+
+        $content = file_get_contents($wp_config_path);
+        $content = preg_replace(
+            '/\$table_prefix\s*=\s*[\'"][^\'\"]*[\'"];/',
+            "\$table_prefix = '{$new_prefix}';",
+            $content
+        );
+
+        if (file_put_contents($wp_config_path, $content) === false) {
+            throw new Exception('Failed to update wp-config.php');
+        }
+    }
+
+    public function ms_check_permissions_ajax() {
+        check_ajax_referer('ms_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Insufficient permissions.', 'morden-security'));
+            return;
+        }
+
+        $results = $this->scan_file_permissions();
+        wp_send_json_success($results);
+    }
+
+    private function scan_file_permissions() {
+        $paths_to_check = array(
+            ABSPATH => array('type' => 'directory', 'recommended' => '755'),
+            ABSPATH . 'wp-config.php' => array('type' => 'file', 'recommended' => '644'),
+            ABSPATH . '.htaccess' => array('type' => 'file', 'recommended' => '644'),
+            WP_CONTENT_DIR => array('type' => 'directory', 'recommended' => '755'),
+            WP_CONTENT_DIR . '/themes' => array('type' => 'directory', 'recommended' => '755'),
+            WP_CONTENT_DIR . '/plugins' => array('type' => 'directory', 'recommended' => '755'),
+            WP_CONTENT_DIR . '/uploads' => array('type' => 'directory', 'recommended' => '755'),
+            ABSPATH . 'wp-admin' => array('type' => 'directory', 'recommended' => '755'),
+            ABSPATH . 'wp-includes' => array('type' => 'directory', 'recommended' => '755'),
+        );
+
+        $issues = array();
+        $secure_count = 0;
+
+        foreach ($paths_to_check as $path => $config) {
+            if (!file_exists($path)) {
+                continue;
+            }
+
+            $current_perms = substr(sprintf('%o', fileperms($path)), -3);
+            $is_secure = ($current_perms === $config['recommended']);
+            $is_dangerous = in_array($current_perms, array('777', '666'));
+
+            if (!$is_secure || $is_dangerous) {
+                $issues[] = array(
+                    'path' => str_replace(ABSPATH, '', $path),
+                    'current' => $current_perms,
+                    'recommended' => $config['recommended'],
+                    'type' => $config['type'],
+                    'dangerous' => $is_dangerous
+                );
+            } else {
+                $secure_count++;
+            }
+        }
+
+        return array(
+            'issues' => $issues,
+            'secure_count' => $secure_count,
+            'total_checked' => count($paths_to_check)
+        );
+    }
+
+    public function ms_fix_permissions_ajax() {
+        check_ajax_referer('ms_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Insufficient permissions.', 'morden-security'));
+            return;
+        }
+
+        $fixed_count = $this->fix_file_permissions();
+
+        $this->core->ms_log_security_event('permissions_fixed',
+            "Fixed {$fixed_count} file/folder permissions",
+            'medium',
+            get_current_user_id()
+        );
+
+        wp_send_json_success(array(
+            'message' => sprintf(__('Fixed %d file/folder permissions.', 'morden-security'), $fixed_count)
+        ));
+    }
+
+    private function fix_file_permissions() {
+        $paths_to_fix = array(
+            ABSPATH => '755',
+            ABSPATH . 'wp-config.php' => '644',
+            ABSPATH . '.htaccess' => '644',
+            WP_CONTENT_DIR => '755',
+            WP_CONTENT_DIR . '/themes' => '755',
+            WP_CONTENT_DIR . '/plugins' => '755',
+            WP_CONTENT_DIR . '/uploads' => '755',
+            ABSPATH . 'wp-admin' => '755',
+            ABSPATH . 'wp-includes' => '755',
+        );
+
+        $fixed_count = 0;
+
+        foreach ($paths_to_fix as $path => $recommended) {
+            if (!file_exists($path)) {
+                continue;
+            }
+
+            $current_perms = substr(sprintf('%o', fileperms($path)), -3);
+
+            if ($current_perms !== $recommended) {
+                if (chmod($path, octdec($recommended))) {
+                    $fixed_count++;
+                }
+            }
+        }
+
+        return $fixed_count;
+    }
+
+    public function ms_sanitize_settings($input) {
+        $sanitized = array();
+
+        $boolean_fields = array(
+            'disable_file_editor', 'force_ssl', 'disable_xmlrpc', 'limit_login_attempts',
+            'enable_security_headers', 'hide_wp_version', 'remove_wp_credit',
+            'hide_wp_logo', 'hide_admin_bar', 'turnstile_enabled', 'enable_2fa',
+            'block_suspicious_requests', 'enable_firewall', 'scan_uploads', 'enable_geolocation',
+            'block_php_uploads', 'disable_pingbacks', 'enable_bot_protection',
+            'block_author_scans', 'enable_file_integrity'
+        );
+
+        foreach ($boolean_fields as $field) {
+            $sanitized[$field] = isset($input[$field]) ? 1 : 0;
+        }
+
+        $sanitized['max_login_attempts'] = absint($input['max_login_attempts'] ?? 5);
+        $sanitized['lockout_duration'] = absint($input['lockout_duration'] ?? 1800);
+        $sanitized['max_logs'] = min(absint($input['max_logs'] ?? 1000), 10000);
+        $sanitized['max_days_retention'] = min(absint($input['max_days_retention'] ?? 30), 365);
+        $sanitized['turnstile_site_key'] = sanitize_text_field($input['turnstile_site_key'] ?? '');
+        $sanitized['turnstile_secret_key'] = sanitize_text_field($input['turnstile_secret_key'] ?? '');
+
+        // Scan settings
+        $sanitized['custom_safe_folders'] = sanitize_textarea_field($input['custom_safe_folders'] ?? '');
+        $sanitized['scan_sensitivity'] = in_array($input['scan_sensitivity'] ?? 'medium', array('low', 'medium', 'high'))
+            ? $input['scan_sensitivity'] : 'medium';
+        $sanitized['max_scan_file_size'] = min(absint($input['max_scan_file_size'] ?? 10), 100);
+
+        return $sanitized;
+    }
+
+
+    public function ms_run_integrity_check_ajax() {
+        check_ajax_referer('ms_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Insufficient permissions.', 'morden-security'));
+            return;
+        }
+
+        try {
+            // Run integrity check
+            $this->core->ms_run_integrity_check();
+
+            // Get results
+            $integrity_results = get_option('ms_integrity_check_results', array());
+
+            if (!empty($integrity_results)) {
+                $status = $integrity_results['status'];
+                $message = $status === 'clean'
+                    ? __('Integrity check completed successfully. No issues found.', 'morden-security')
+                    : sprintf(__('Integrity check completed. Found %d modified files and %d missing files.', 'morden-security'),
+                        count($integrity_results['modified_files']),
+                        count($integrity_results['missing_files']));
+
+                wp_send_json_success(array(
+                    'message' => $message,
+                    'status' => $status,
+                    'results' => $integrity_results
+                ));
+            } else {
+                wp_send_json_error(__('Failed to run integrity check.', 'morden-security'));
+            }
+
+        } catch (Exception $e) {
+            wp_send_json_error('Integrity check failed: ' . $e->getMessage());
+        }
+    }
+
+    public function ms_get_detailed_report_ajax() {
+        check_ajax_referer('ms_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Insufficient permissions.', 'morden-security'));
+            return;
+        }
+
+        $integrity_results = get_option('ms_integrity_check_results', array());
+        $plugin_results = get_option('ms_plugin_integrity_results', array());
+        $theme_results = get_option('ms_theme_integrity_results', array());
+
+        ob_start();
+        ?>
+        <div class="ms-detailed-report">
+            <h4><?php _e('WordPress Core Integrity', 'morden-security'); ?></h4>
+            <?php if (!empty($integrity_results)): ?>
+                <p><strong><?php _e('Status:', 'morden-security'); ?></strong>
+                    <span class="<?php echo $integrity_results['status'] === 'clean' ? 'ms-status-clean' : 'ms-status-infected'; ?>">
+                        <?php echo $integrity_results['status'] === 'clean' ? __('Clean', 'morden-security') : __('Issues Detected', 'morden-security'); ?>
+                    </span>
+                </p>
+                <p><strong><?php _e('Last Check:', 'morden-security'); ?></strong> <?php echo esc_html($integrity_results['last_check']); ?></p>
+                <p><strong><?php _e('WordPress Version:', 'morden-security'); ?></strong> <?php echo esc_html($integrity_results['wp_version']); ?></p>
+
+                <?php if (!empty($integrity_results['modified_files'])): ?>
+                    <h5><?php _e('Modified Core Files:', 'morden-security'); ?></h5>
+                    <ul>
+                        <?php foreach ($integrity_results['modified_files'] as $file): ?>
+                            <li><code><?php echo esc_html($file); ?></code></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+
+                <?php if (!empty($integrity_results['missing_files'])): ?>
+                    <h5><?php _e('Missing Core Files:', 'morden-security'); ?></h5>
+                    <ul>
+                        <?php foreach ($integrity_results['missing_files'] as $file): ?>
+                            <li><code><?php echo esc_html($file); ?></code></li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            <?php else: ?>
+                <p><?php _e('No integrity check has been performed yet.', 'morden-security'); ?></p>
+            <?php endif; ?>
+
+            <h4><?php _e('Plugin Integrity', 'morden-security'); ?></h4>
+            <?php if (!empty($plugin_results['issues'])): ?>
+                <?php foreach ($plugin_results['issues'] as $issue): ?>
+                    <div class="ms-plugin-issue">
+                        <strong><?php echo esc_html($issue['plugin']); ?></strong>
+                        <?php if ($issue['issue'] === 'outdated'): ?>
+                            <p><?php printf(__('Outdated: Current version %s, Latest version %s', 'morden-security'),
+                                esc_html($issue['current']), esc_html($issue['latest'])); ?></p>
+                        <?php elseif ($issue['issue'] === 'suspicious_files'): ?>
+                            <p><?php _e('Suspicious files detected:', 'morden-security'); ?></p>
+                            <ul>
+                                <?php foreach ($issue['files'] as $file): ?>
+                                    <li><code><?php echo esc_html($file); ?></code></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <p><?php _e('No plugin issues detected.', 'morden-security'); ?></p>
+            <?php endif; ?>
+
+            <h4><?php _e('Theme Integrity', 'morden-security'); ?></h4>
+            <?php if (!empty($theme_results['issues'])): ?>
+                <?php foreach ($theme_results['issues'] as $issue): ?>
+                    <div class="ms-theme-issue">
+                        <strong><?php echo esc_html($issue['theme']); ?></strong>
+                        <?php if ($issue['issue'] === 'suspicious_files'): ?>
+                            <p><?php _e('Suspicious files detected:', 'morden-security'); ?></p>
+                            <ul>
+                                <?php foreach ($issue['files'] as $file): ?>
+                                    <li><code><?php echo esc_html($file); ?></code></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <p><?php _e('No theme issues detected.', 'morden-security'); ?></p>
+            <?php endif; ?>
+        </div>
+
+        <style>
+        .ms-detailed-report h4 {
+            color: #23282d;
+            border-bottom: 1px solid #ccd0d4;
+            padding-bottom: 10px;
+            margin-top: 25px;
+        }
+        .ms-detailed-report h5 {
+            color: #555;
+            margin-top: 15px;
+        }
+        .ms-plugin-issue, .ms-theme-issue {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid #007cba;
+            border-radius: 0 4px 4px 0;
+        }
+        .ms-status-clean {
+            color: #155724;
+            font-weight: bold;
+        }
+        .ms-status-infected {
+            color: #721c24;
+            font-weight: bold;
+        }
+        </style>
+        <?php
+        $content = ob_get_clean();
+
+        wp_send_json_success(array('content' => $content));
+    }
+
 
     public function ms_add_admin_menu() {
         add_menu_page(
@@ -64,37 +465,6 @@ class MS_Admin {
         register_setting('ms_settings_group', 'ms_settings', array($this, 'ms_sanitize_settings'));
     }
 
-    public function ms_sanitize_settings($input) {
-        $sanitized = array();
-
-        $boolean_fields = array(
-            'disable_file_editor', 'force_ssl', 'disable_xmlrpc', 'limit_login_attempts',
-            'enable_security_headers', 'hide_wp_version', 'remove_wp_credit',
-            'hide_wp_logo', 'hide_admin_bar', 'turnstile_enabled', 'enable_2fa',
-            'block_suspicious_requests', 'enable_firewall', 'scan_uploads', 'enable_geolocation'
-        );
-
-        foreach ($boolean_fields as $field) {
-            $sanitized[$field] = isset($input[$field]) ? 1 : 0;
-        }
-
-        $sanitized['max_login_attempts'] = absint($input['max_login_attempts'] ?? 5);
-        $sanitized['lockout_duration'] = absint($input['lockout_duration'] ?? 1800);
-        $sanitized['max_logs'] = min(absint($input['max_logs'] ?? 1000), 10000);
-        $sanitized['max_days_retention'] = min(absint($input['max_days_retention'] ?? 30), 365);
-        $sanitized['turnstile_site_key'] = sanitize_text_field($input['turnstile_site_key'] ?? '');
-        $sanitized['turnstile_secret_key'] = sanitize_text_field($input['turnstile_secret_key'] ?? '');
-
-        // New scan settings
-        $sanitized['custom_safe_folders'] = sanitize_textarea_field($input['custom_safe_folders'] ?? '');
-        $sanitized['scan_sensitivity'] = in_array($input['scan_sensitivity'] ?? 'medium', array('low', 'medium', 'high'))
-            ? $input['scan_sensitivity'] : 'medium';
-        $sanitized['max_scan_file_size'] = min(absint($input['max_scan_file_size'] ?? 10), 100);
-
-        return $sanitized;
-    }
-
-
     public function ms_enqueue_admin_scripts($hook) {
         // Only load on Morden Security pages
         $allowed_pages = array(
@@ -127,7 +497,13 @@ class MS_Admin {
         // Localize script
         wp_localize_script('ms-admin-script', 'ms_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('ms_admin_nonce')
+            'nonce' => wp_create_nonce('ms_admin_nonce'),
+            'confirm_block_ip' => __('Are you sure you want to block this IP address?', 'morden-security'),
+            'confirm_unblock_ip' => __('Are you sure you want to unblock this IP address?', 'morden-security'),
+            'blocking_ip' => __('Blocking IP...', 'morden-security'),
+            'unblocking_ip' => __('Unblocking...', 'morden-security'),
+            'block_ip' => __('Block IP', 'morden-security'),
+            'unblock' => __('Unblock', 'morden-security')
         ));
 
         // Add inline CSS for immediate styling
@@ -167,17 +543,32 @@ class MS_Admin {
             .ms-tabs .tab-content.active {
                 display: block;
             }
+
+            .ms-block-ip-btn {
+                background: #dc3545;
+                color: #fff;
+                border: none;
+                padding: 4px 8px;
+                border-radius: 3px;
+                cursor: pointer;
+                font-size: 12px;
+                margin-left: 5px;
+            }
+
+            .ms-block-ip-btn:hover {
+                background: #c82333;
+            }
+
+            .ms-block-ip-btn:disabled {
+                background: #6c757d;
+                cursor: not-allowed;
+            }
         ';
 
         wp_add_inline_style('ms-admin-style', $inline_css);
     }
 
     public function ms_admin_page() {
-        // Force load CSS jika belum ter-load
-        if (!wp_style_is('ms-admin-style', 'enqueued')) {
-            echo '<link rel="stylesheet" href="' . MS_PLUGIN_URL . 'admin/css/admin-style.css?v=' . MS_VERSION . '">';
-        }
-
         include MS_PLUGIN_PATH . 'admin/admin-page.php';
     }
 
@@ -208,7 +599,7 @@ class MS_Admin {
         echo '<option value="30">' . __('Last 30 days', 'morden-security') . '</option>';
         echo '</select>';
 
-        echo '<input type="number" name="limit" id="ms-limit-filter" value="20" min="10" max="' . $max_logs . '" placeholder="' . __('Limit', 'morden-security') . '">';
+        echo '<input type="number" name="limit" id="ms-limit-filter" value="100" min="10" max="' . $max_logs . '" placeholder="' . __('Limit', 'morden-security') . '">';
         echo '<button type="button" id="ms-filter-logs" class="button">' . __('Filter', 'morden-security') . '</button>';
         echo '<button type="button" id="ms-export-logs" class="button">' . __('Export CSV', 'morden-security') . '</button>';
         echo '</form>';
@@ -224,9 +615,10 @@ class MS_Admin {
         echo '<th>' . __('Path', 'morden-security') . '</th>';
         echo '<th>' . __('Description', 'morden-security') . '</th>';
         echo '<th>' . __('Severity', 'morden-security') . '</th>';
+        echo '<th>' . __('Actions', 'morden-security') . '</th>';
         echo '</tr></thead>';
         echo '<tbody id="ms-logs-tbody">';
-        echo '<tr><td colspan="7">' . __('Loading...', 'morden-security') . '</td></tr>';
+        echo '<tr><td colspan="8">' . __('Loading...', 'morden-security') . '</td></tr>';
         echo '</tbody></table>';
         echo '</div>';
 
@@ -308,21 +700,29 @@ class MS_Admin {
         $offset = isset($_POST['offset']) ? absint($_POST['offset']) : 0;
 
         $log_table = $wpdb->prefix . 'ms_security_log';
+        $blocked_table = $wpdb->prefix . 'ms_blocked_ips';
 
-        $where_clause = "WHERE created_at > %s";
+        // FIX: Gunakan alias table untuk menghindari ambiguous column
+        $where_clause = "WHERE l.created_at > %s";
         $params = array(date('Y-m-d H:i:s', strtotime('-' . $days . ' days')));
 
         if (!empty($severity)) {
-            $where_clause .= " AND severity = %s";
+            $where_clause .= " AND l.severity = %s";
             $params[] = $severity;
         }
 
-        // Get total count
-        $total_query = "SELECT COUNT(*) FROM $log_table $where_clause";
+        // Get total count dengan alias yang jelas
+        $total_query = "SELECT COUNT(*) FROM $log_table l $where_clause";
         $total = $wpdb->get_var($wpdb->prepare($total_query, $params));
 
-        // Get logs
-        $logs_query = "SELECT * FROM $log_table $where_clause ORDER BY created_at DESC LIMIT %d OFFSET %d";
+        // Get logs dengan alias yang jelas untuk semua kolom
+        $logs_query = "SELECT l.*,
+                            CASE WHEN b.ip_address IS NOT NULL THEN 1 ELSE 0 END as is_blocked
+                    FROM $log_table l
+                    LEFT JOIN $blocked_table b ON l.ip_address = b.ip_address
+                    $where_clause
+                    ORDER BY l.created_at DESC
+                    LIMIT %d OFFSET %d";
         $params[] = $limit;
         $params[] = $offset;
 
@@ -334,6 +734,62 @@ class MS_Admin {
             'limit' => $limit,
             'offset' => $offset
         ));
+    }
+
+
+    public function ms_block_ip_from_logs() {
+        check_ajax_referer('ms_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Insufficient permissions.', 'morden-security'));
+            return;
+        }
+
+        $ip = sanitize_text_field($_POST['ip'] ?? '');
+        $reason = sanitize_text_field($_POST['reason'] ?? 'Blocked from security logs');
+
+        if (empty($ip) || !filter_var($ip, FILTER_VALIDATE_IP)) {
+            wp_send_json_error(__('Invalid IP address.', 'morden-security'));
+            return;
+        }
+
+        // Check if IP is already blocked
+        global $wpdb;
+        $blocked_table = $wpdb->prefix . 'ms_blocked_ips';
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM $blocked_table WHERE ip_address = %s",
+            $ip
+        ));
+
+        if ($existing) {
+            wp_send_json_error(__('IP address is already blocked.', 'morden-security'));
+            return;
+        }
+
+        // Block the IP
+        $result = $wpdb->insert(
+            $blocked_table,
+            array(
+                'ip_address' => $ip,
+                'reason' => $reason,
+                'blocked_until' => null, // Permanent block
+                'permanent' => 1,
+                'created_at' => current_time('mysql')
+            )
+        );
+
+        if ($result) {
+            // Log the blocking action
+            $this->core->ms_log_security_event('ip_blocked_manual',
+                "IP manually blocked from security logs: $ip - Reason: $reason",
+                'high',
+                get_current_user_id()
+            );
+
+            wp_send_json_success(__('IP address has been blocked successfully.', 'morden-security'));
+        } else {
+            wp_send_json_error(__('Failed to block IP address.', 'morden-security'));
+        }
     }
 
     public function ms_export_security_logs() {
@@ -351,15 +807,16 @@ class MS_Admin {
 
         $log_table = $wpdb->prefix . 'ms_security_log';
 
-        $where_clause = "WHERE created_at > %s";
+        // FIX: Gunakan alias table untuk menghindari ambiguous column
+        $where_clause = "WHERE l.created_at > %s";
         $params = array(date('Y-m-d H:i:s', strtotime('-' . $days . ' days')));
 
         if (!empty($severity)) {
-            $where_clause .= " AND severity = %s";
+            $where_clause .= " AND l.severity = %s";
             $params[] = $severity;
         }
 
-        $logs_query = "SELECT * FROM $log_table $where_clause ORDER BY created_at DESC LIMIT %d";
+        $logs_query = "SELECT l.* FROM $log_table l $where_clause ORDER BY l.created_at DESC LIMIT %d";
         $params[] = $limit;
 
         $logs = $wpdb->get_results($wpdb->prepare($logs_query, $params));
@@ -421,38 +878,4 @@ class MS_Admin {
             wp_send_json_error(__('Failed to unblock IP address.', 'morden-security'));
         }
     }
-
-    public function ms_manual_scan() {
-        check_ajax_referer('ms_admin_nonce', 'nonce');
-
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('Insufficient permissions');
-            return;
-        }
-
-        try {
-            // Run the security scan
-            $this->core->ms_run_security_scan();
-
-            // Get scan results
-            global $wpdb;
-            $log_table = $wpdb->prefix . 'ms_security_log';
-
-            $recent_events = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM $log_table WHERE created_at > %s AND event_type = 'suspicious_file'",
-                date('Y-m-d H:i:s', strtotime('-1 minute'))
-            ));
-
-            $message = sprintf(
-                __('Manual scan completed successfully. %d suspicious files detected.', 'morden-security'),
-                $recent_events
-            );
-
-            wp_send_json_success(array('message' => $message));
-
-        } catch (Exception $e) {
-            wp_send_json_error('Scan failed: ' . $e->getMessage());
-        }
-    }
-
 }
