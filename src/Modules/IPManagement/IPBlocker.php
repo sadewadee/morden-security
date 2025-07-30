@@ -350,11 +350,13 @@ class IPBlocker
 
     private function isRuleExpired(array $rule): bool
     {
-        if ($rule['block_duration'] === 'permanent' || !$rule['blocked_until']) {
+        $blockDuration = $rule['block_duration'] ?? 'temporary';
+        $blockedUntil = $rule['blocked_until'] ?? null;
+
+        if ($blockDuration === 'permanent' || !$blockedUntil) {
             return false;
         }
-
-        return $rule['blocked_until'] < time();
+        return $blockedUntil < time();
     }
 
     private function getTimeRemaining(array $rule): int
