@@ -2,286 +2,118 @@
 
 namespace MordenSecurity\Core;
 
+use MordenSecurity\Modules\WAF\WAFRules;
 use MordenSecurity\Utils\IPUtils;
+use MordenSecurity\Core\LoggerSQLite;
 
-if (!defined('ABSPATH')) {
-    exit;
-}
+class Firewall {
+    private $logger;
+    private $wafEngine;
+    private $config;
 
-class Firewall
-{
-    private LoggerSQLite $logger;
-    private array $config;
-    private array $requestData;
-
-    public function __construct(LoggerSQLite $logger)
-    {
+    public function __construct($logger, $wafEngine) {
         $this->logger = $logger;
+        $this->wafEngine = $wafEngine;
         $this->config = [
             'firewall_enabled' => get_option('ms_firewall_enabled', true),
-            'sql_injection_protection' => get_option('ms_sql_injection_protection', true),
-            'xss_protection' => get_option('ms_xss_protection', true),
-            'lfi_protection' => get_option('ms_lfi_protection', true),
-            'rfi_protection' => get_option('ms_rfi_protection', true),
-            'command_injection_protection' => get_option('ms_command_injection_protection', true)
+            'threat_threshold' => get_option('ms_threat_threshold', 7),
+            'challenge_threshold' => get_option('ms_challenge_threshold', 5)
         ];
-
-        $this->initializeRequestData();
     }
 
-    public function checkRequest(): array
-    {
+    public function checkRequest(): array {
         if (!$this->config['firewall_enabled']) {
             return ['action' => 'allow', 'reason' => 'firewall_disabled'];
         }
 
-        $threats = [];
+        // Gunakan WAF engine untuk semua deteksi
+        $requestData = $this->gatherRequestData();
+        $wafResult = $this->wafEngine->evaluateRequest($requestData);
 
-        if ($this->config['sql_injection_protection']) {
-            $sqlThreat = $this->detectSQLInjection();
-            if ($sqlThreat['detected']) {
-                $threats[] = $sqlThreat;
-            }
-        }
-
-        if ($this->config['xss_protection']) {
-            $xssThreat = $this->detectXSS();
-            if ($xssThreat['detected']) {
-                $threats[] = $xssThreat;
-            }
-        }
-
-        if ($this->config['lfi_protection']) {
-            $lfiThreat = $this->detectLFI();
-            if ($lfiThreat['detected']) {
-                $threats[] = $lfiThreat;
-            }
-        }
-
-        if ($this->config['rfi_protection']) {
-            $rfiThreat = $this->detectRFI();
-            if ($rfiThreat['detected']) {
-                $threats[] = $rfiThreat;
-            }
-        }
-
-        if ($this->config['command_injection_protection']) {
-            $cmdThreat = $this->detectCommandInjection();
-            if ($cmdThreat['detected']) {
-                $threats[] = $cmdThreat;
-            }
-        }
-
-        if (empty($threats)) {
+        if (empty($wafResult)) {
             return ['action' => 'allow', 'reason' => 'no_threats'];
         }
 
-        $highestSeverity = max(array_column($threats, 'severity'));
-        $primaryThreat = array_filter($threats, fn($t) => $t['severity'] === $highestSeverity)[0];
+        // Analisis hasil dari WAF
+        $analysis = $this->analyzeThreats($wafResult);
+        $this->logFirewallEvent($analysis);
 
-        $this->logFirewallEvent($threats);
+        return $analysis;
+    }
+
+    private function gatherRequestData(): array {
+        return [
+            'uri' => $_SERVER['REQUEST_URI'] ?? '',
+            'query_string' => $_SERVER['QUERY_STRING'] ?? '',
+            'post_data' => http_build_query($_POST ?? []),
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'headers' => $this->getSecurityHeaders(),
+            'method' => $_SERVER['REQUEST_METHOD'] ?? 'GET',
+            'referer' => $_SERVER['HTTP_REFERER'] ?? ''
+        ];
+    }
+
+    private function analyzeThreats(array $violations): array {
+        $highestSeverity = max(array_column($violations, 'severity'));
+        $criticalThreats = array_filter($violations, fn($v) => $v['severity'] >= $this->config['threat_threshold']);
+        $suspiciousThreats = array_filter($violations, fn($v) => $v['severity'] >= $this->config['challenge_threshold']);
+
+        $action = 'allow';
+        $reason = 'low_threat';
+
+        if (!empty($criticalThreats)) {
+            $action = 'block';
+            $reason = $criticalThreats[0]['rule_group'] . '_violation';
+        } elseif (!empty($suspiciousThreats)) {
+            $action = 'challenge';
+            $reason = 'suspicious_activity';
+        }
 
         return [
-            'action' => $highestSeverity >= 8 ? 'block' : 'monitor',
-            'reason' => $primaryThreat['type'],
-            'threats' => $threats,
-            'severity' => $highestSeverity
+            'action' => $action,
+            'reason' => $reason,
+            'severity' => $highestSeverity,
+            'violations' => $violations,
+            'threat_categories' => $this->categorizeThreats($violations)
         ];
     }
 
-    private function detectSQLInjection(): array
-    {
-        $patterns = [
-            '/(\bunion\b.*\bselect\b)/i' => 9,
-            '/(\bselect\b.*\bfrom\b.*\bwhere\b)/i' => 8,
-            '/(\'.*or.*\'.*=.*\')/i' => 9,
-            '/(\bdrop\b.*\btable\b)/i' => 10,
-            '/(\binsert\b.*\binto\b)/i' => 7,
-            '/(\bupdate\b.*\bset\b)/i' => 7,
-            '/(\bdelete\b.*\bfrom\b)/i' => 8,
-            '/(benchmark\s*\()/i' => 8,
-            '/(sleep\s*\()/i' => 8,
-            '/(\bexec\b.*\()/i' => 9
-        ];
-
-        foreach ($this->requestData as $source => $data) {
-            foreach ($patterns as $pattern => $severity) {
-                if (preg_match($pattern, $data)) {
-                    return [
-                        'detected' => true,
-                        'type' => 'sql_injection',
-                        'severity' => $severity,
-                        'source' => $source,
-                        'pattern' => $pattern,
-                        'matched_data' => substr($data, 0, 100)
-                    ];
-                }
+    private function categorizeThreats(array $violations): array {
+        $categories = [];
+        foreach ($violations as $violation) {
+            $category = $violation['rule_group'] ?? 'unknown';
+            if (!isset($categories[$category])) {
+                $categories[$category] = 0;
             }
+            $categories[$category]++;
         }
-
-        return ['detected' => false];
+        return $categories;
     }
 
-    private function detectXSS(): array
-    {
-        $patterns = [
-            '/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/i' => 9,
-            '/javascript\s*:/i' => 8,
-            '/on\w+\s*=\s*["\']?[^"\'>\s]+/i' => 7,
-            '/<iframe\b[^>]*>/i' => 8,
-            '/<object\b[^>]*>/i' => 7,
-            '/<embed\b[^>]*>/i' => 7,
-            '/expression\s*\(/i' => 8,
-            '/vbscript\s*:/i' => 8
+    private function getSecurityHeaders(): array {
+        return [
+            'accept' => $_SERVER['HTTP_ACCEPT'] ?? '',
+            'accept_language' => $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '',
+            'accept_encoding' => $_SERVER['HTTP_ACCEPT_ENCODING'] ?? '',
+            'x_forwarded_for' => $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '',
+            'x_real_ip' => $_SERVER['HTTP_X_REAL_IP'] ?? ''
         ];
-
-        foreach ($this->requestData as $source => $data) {
-            foreach ($patterns as $pattern => $severity) {
-                if (preg_match($pattern, $data)) {
-                    return [
-                        'detected' => true,
-                        'type' => 'xss',
-                        'severity' => $severity,
-                        'source' => $source,
-                        'pattern' => $pattern,
-                        'matched_data' => substr($data, 0, 100)
-                    ];
-                }
-            }
-        }
-
-        return ['detected' => false];
     }
 
-    private function detectLFI(): array
-    {
-        $patterns = [
-            '/\.\.\/.*\.\.\/.*\.\.\//i' => 9,
-            '/\.\.%2f.*\.\.%2f/i' => 9,
-            '/(etc\/passwd|etc\/shadow)/i' => 10,
-            '/proc\/self\/environ/i' => 9,
-            '/\/var\/log\//i' => 7,
-            '/boot\.ini/i' => 8,
-            '/win\.ini/i' => 8
-        ];
-
-        foreach ($this->requestData as $source => $data) {
-            foreach ($patterns as $pattern => $severity) {
-                if (preg_match($pattern, $data)) {
-                    return [
-                        'detected' => true,
-                        'type' => 'lfi',
-                        'severity' => $severity,
-                        'source' => $source,
-                        'pattern' => $pattern,
-                        'matched_data' => substr($data, 0, 100)
-                    ];
-                }
-            }
+    private function logFirewallEvent(array $analysis): void {
+        if ($analysis['action'] !== 'allow') {
+            $this->logger->logSecurityEvent([
+                'event_type' => 'firewall_' . $analysis['action'],
+                'severity' => $analysis['severity'],
+                'ip_address' => IPUtils::getRealClientIP(),
+                'message' => "Firewall {$analysis['action']}: {$analysis['reason']}",
+                'context' => [
+                    'violations' => $analysis['violations'],
+                    'threat_categories' => $analysis['threat_categories']
+                ],
+                'action_taken' => $analysis['action'],
+                'threat_score' => $analysis['severity']
+            ]);
         }
-
-        return ['detected' => false];
-    }
-
-    private function detectRFI(): array
-    {
-        $patterns = [
-            '/https?:\/\/[^\/\s]+/i' => 8,
-            '/ftp:\/\/[^\/\s]+/i' => 8,
-            '/\?\w+=https?:/i' => 9,
-            '/\?\w+=ftp:/i' => 9,
-            '/include.*https?:/i' => 9,
-            '/require.*https?:/i' => 9
-        ];
-
-        foreach ($this->requestData as $source => $data) {
-            foreach ($patterns as $pattern => $severity) {
-                if (preg_match($pattern, $data) && $source !== 'HTTP_REFERER') {
-                    return [
-                        'detected' => true,
-                        'type' => 'rfi',
-                        'severity' => $severity,
-                        'source' => $source,
-                        'pattern' => $pattern,
-                        'matched_data' => substr($data, 0, 100)
-                    ];
-                }
-            }
-        }
-
-        return ['detected' => false];
-    }
-
-    private function detectCommandInjection(): array
-    {
-        $patterns = [
-            '/;\s*(rm|del|format|shutdown)/i' => 10,
-            '/\|\s*(nc|netcat|telnet)/i' => 9,
-            '/\$\(.*\)/i' => 8,
-            '/`.*`/i' => 8,
-            '/&&\s*(cat|ls|ps|id|whoami)/i' => 8,
-            '/\|\|\s*(cat|ls|ps|id|whoami)/i' => 8
-        ];
-
-        foreach ($this->requestData as $source => $data) {
-            foreach ($patterns as $pattern => $severity) {
-                if (preg_match($pattern, $data)) {
-                    return [
-                        'detected' => true,
-                        'type' => 'command_injection',
-                        'severity' => $severity,
-                        'source' => $source,
-                        'pattern' => $pattern,
-                        'matched_data' => substr($data, 0, 100)
-                    ];
-                }
-            }
-        }
-
-        return ['detected' => false];
-    }
-
-    private function initializeRequestData(): void
-    {
-        $this->requestData = [];
-
-        if (!empty($_GET)) {
-            $this->requestData['GET'] = implode(' ', array_values($_GET));
-        }
-
-        if (!empty($_POST)) {
-            $this->requestData['POST'] = implode(' ', array_values($_POST));
-        }
-
-        if (!empty($_COOKIE)) {
-            $this->requestData['COOKIE'] = implode(' ', array_values($_COOKIE));
-        }
-
-        $this->requestData['REQUEST_URI'] = $_SERVER['REQUEST_URI'] ?? '';
-        $this->requestData['QUERY_STRING'] = $_SERVER['QUERY_STRING'] ?? '';
-        $this->requestData['HTTP_REFERER'] = $_SERVER['HTTP_REFERER'] ?? '';
-        $this->requestData['HTTP_USER_AGENT'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
-    }
-
-    private function logFirewallEvent(array $threats): void
-    {
-        $ipAddress = IPUtils::getRealClientIP();
-        $primaryThreat = $threats[0];
-
-        $this->logger->logSecurityEvent([
-            'event_type' => 'firewall_block',
-            'severity' => min($primaryThreat['severity'], 4),
-            'ip_address' => $ipAddress,
-            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
-            'request_uri' => $_SERVER['REQUEST_URI'] ?? '',
-            'message' => "Firewall detected {$primaryThreat['type']} attack",
-            'context' => [
-                'threats' => $threats,
-                'request_method' => $_SERVER['REQUEST_METHOD'] ?? '',
-                'matched_data' => $primaryThreat['matched_data'] ?? ''
-            ],
-            'action_taken' => $primaryThreat['severity'] >= 8 ? 'blocked' : 'monitored',
-            'threat_score' => $primaryThreat['severity'] * 10
-        ]);
     }
 }

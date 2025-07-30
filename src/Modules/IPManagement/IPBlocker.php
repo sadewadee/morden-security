@@ -39,8 +39,16 @@ class IPBlocker
 
         if (!$rule || !($rule['is_active'] ?? true)) {
             $result = ['blocked' => false, 'reason' => 'not_blocked'];
-        } elseif (($rule['rule_type'] ?? '') === 'whitelist') {
-            $result = ['blocked' => false, 'reason' => 'whitelisted', 'rule' => $rule];
+        } elseif (in_array($rule['rule_type'] ?? '', ['whitelist', 'temp_whitelist'])) {
+            // Check if temp whitelist expired
+            if ($rule['rule_type'] === 'temp_whitelist' &&
+                $rule['blocked_until'] &&
+                $rule['blocked_until'] < time()) {
+                $this->expireRule($rule['id'] ?? 0);
+                $result = ['blocked' => false, 'reason' => 'temp_whitelist_expired'];
+            } else {
+                $result = ['blocked' => false, 'reason' => 'whitelisted', 'rule' => $rule];
+            }
         } elseif ($this->isRuleExpired($rule)) {
             $this->expireRule($rule['id'] ?? 0);
             $result = ['blocked' => false, 'reason' => 'expired'];
@@ -60,6 +68,7 @@ class IPBlocker
 
         return $result;
     }
+
 
     public function addBlock(string $ipAddress, array $blockData): bool
     {

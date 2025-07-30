@@ -204,6 +204,21 @@ class RestAPI
 
     public function checkPublicPermissions(): bool
     {
+        $ipAddress = IPUtils::getRealClientIP();
+        $transientKey = 'ms_api_limit_' . md5($ipAddress);
+
+        $requestCount = get_transient($transientKey);
+
+        if ($requestCount === false) {
+            set_transient($transientKey, 1, 60); // 1 request per minute
+            return true;
+        }
+
+        if ($requestCount >= 10) { // Allow max 10 requests per minute
+            return new \WP_Error('rest_too_many_requests', 'Too many requests.', ['status' => 429]);
+        }
+
+        set_transient($transientKey, $requestCount + 1, 60);
         return true;
     }
 

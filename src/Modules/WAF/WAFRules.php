@@ -2,150 +2,135 @@
 
 namespace MordenSecurity\Modules\WAF;
 
+use MordenSecurity\Core\LoggerSQLite;
 use MordenSecurity\Modules\WAF\RulesetManager;
+use MordenSecurity\Modules\WAF\CustomRules;
 
-if (!defined('ABSPATH')) {
-    exit;
-}
+class WAFRules {
+    private $logger;
+    private $rulesetManager;
+    private $customRules;
+    private $loadedRules;
 
-class WAFRules
-{
-    private array $rules;
-    private array $customRules;
-    private string $rulesPath;
-
-    public function __construct()
-    {
-        $this->rulesPath = MS_PLUGIN_PATH . 'data/rulesets/';
-        $this->loadRules();
-        $this->loadCustomRules();
+    public function __construct($logger, $rulesetManager, $customRules) {
+        $this->logger = $logger;
+        $this->rulesetManager = $rulesetManager;
+        $this->customRules = $customRules;
+        $this->loadAllRules();
     }
 
-    public function evaluateRequest(array $requestData): array
-    {
+    public function evaluateRequest(array $requestData): array {
         $violations = [];
 
-        foreach ($this->rules as $ruleGroup => $rules) {
-            foreach ($rules as $rule) {
-                $result = $this->evaluateRule($rule, $requestData);
-                if ($result['triggered']) {
-                    $violations[] = [
-                        'rule_id' => $rule['id'],
-                        'rule_group' => $ruleGroup,
-                        'severity' => $rule['severity'],
-                        'message' => $rule['message'],
-                        'matched_data' => $result['matched_data'],
-                        'action' => $rule['action']
-                    ];
-                }
-            }
+        // Evaluasi ruleset standar
+        foreach ($this->loadedRules['standard'] as $ruleGroup => $rules) {
+            $violations = array_merge($violations, $this->evaluateRuleGroup($rules, $requestData, $ruleGroup));
         }
 
-        foreach ($this->customRules as $rule) {
+        // Evaluasi custom rules
+        $customViolations = $this->customRules->evaluateRules($requestData);
+        $violations = array_merge($violations, $customViolations);
+
+        // Urutkan berdasarkan severity
+        usort($violations, fn($a, $b) => $b['severity'] <=> $a['severity']);
+
+        return $violations;
+    }
+
+    public function addRuleGroup(string $groupName, array $rules): bool {
+        if ($this->validateRuleGroup($rules)) {
+            $this->loadedRules['standard'][$groupName] = $rules;
+            return true;
+        }
+        return false;
+    }
+
+    public function removeRuleGroup(string $groupName): bool {
+        if (isset($this->loadedRules['standard'][$groupName])) {
+            unset($this->loadedRules['standard'][$groupName]);
+            return true;
+        }
+        return false;
+    }
+
+    public function getActiveRulesCount(): array {
+        $count = [
+            'standard' => 0,
+            'custom' => count($this->customRules->getRules()),
+            'total' => 0
+        ];
+
+        foreach ($this->loadedRules['standard'] as $rules) {
+            $count['standard'] += count(array_filter($rules, fn($r) => $r['enabled'] ?? true));
+        }
+
+        $count['total'] = $count['standard'] + $count['custom'];
+        return $count;
+    }
+
+    private function loadAllRules(): void {
+        $this->loadedRules = [
+            'standard' => [],
+            'builtin' => $this->getBuiltinRules()
+        ];
+
+        // Load rulesets dari RulesetManager
+        $rulesets = $this->rulesetManager->loadAllRulesets();
+        foreach ($rulesets as $rulesetName => $ruleset) {
+            if (isset($ruleset['rules']) && is_array($ruleset['rules'])) {
+                $this->loadedRules['standard'][$rulesetName] = $ruleset['rules'];
+            }
+        }
+    }
+
+    private function evaluateRuleGroup(array $rules, array $requestData, string $groupName): array {
+        $violations = [];
+
+        foreach ($rules as $rule) {
+            if (!($rule['enabled'] ?? true)) {
+                continue;
+            }
+
             $result = $this->evaluateRule($rule, $requestData);
             if ($result['triggered']) {
                 $violations[] = [
                     'rule_id' => $rule['id'],
-                    'rule_group' => 'custom',
-                    'severity' => $rule['severity'],
-                    'message' => $rule['message'],
+                    'rule_name' => $rule['name'] ?? 'Unknown Rule',
+                    'rule_group' => $groupName,
+                    'severity' => $rule['severity'] ?? 5,
+                    'message' => $rule['message'] ?? 'Rule triggered',
+                    'category' => $rule['category'] ?? 'security',
                     'matched_data' => $result['matched_data'],
-                    'action' => $rule['action']
+                    'source_field' => $result['source'],
+                    'action' => $rule['action'] ?? 'monitor'
                 ];
+
+                // Update hit statistics
+                $this->updateRuleStatistics($rule['id'], $groupName);
             }
         }
 
         return $violations;
     }
 
-    public function addCustomRule(array $ruleData): bool
-    {
-        $rule = [
-            'id' => 'custom_' . time() . '_' . wp_rand(1000, 9999),
-            'name' => $ruleData['name'],
-            'pattern' => $ruleData['pattern'],
-            'severity' => $ruleData['severity'] ?? 5,
-            'action' => $ruleData['action'] ?? 'block',
-            'message' => $ruleData['message'] ?? 'Custom rule triggered',
-            'enabled' => true,
-            'created_at' => time()
-        ];
-
-        $this->customRules[] = $rule;
-        return $this->saveCustomRules();
-    }
-
-    public function removeCustomRule(string $ruleId): bool
-    {
-        $this->customRules = array_filter(
-            $this->customRules,
-            fn($rule) => $rule['id'] !== $ruleId
-        );
-
-        return $this->saveCustomRules();
-    }
-
-    public function getActiveRules(): array
-    {
-        $activeRules = [];
-
-        foreach ($this->rules as $group => $rules) {
-            $activeRules[$group] = array_filter($rules, fn($rule) => $rule['enabled'] ?? true);
-        }
-
-        $activeRules['custom'] = array_filter($this->customRules, fn($rule) => $rule['enabled'] ?? true);
-
-        return $activeRules;
-    }
-
-    private function loadRules(): void
-    {
-        $this->rules = [
-            'owasp_core' => $this->loadRulesetFile('owasp-core.json'),
-            'wordpress_specific' => $this->loadRulesetFile('wordpress-specific.json'),
-            'ecommerce_protection' => $this->loadRulesetFile('ecommerce-protection.json')
-        ];
-    }
-
-    private function loadRulesetFile(string $filename): array
-    {
-        $filePath = $this->rulesPath . $filename;
-
-        if (!file_exists($filePath)) {
-            return $this->getDefaultRuleset($filename);
-        }
-
-        $content = file_get_contents($filePath);
-        $rules = json_decode($content, true);
-
-        return is_array($rules) ? $rules : [];
-    }
-
-    private function loadCustomRules(): void
-    {
-        $customRules = get_option('ms_custom_waf_rules', []);
-        $this->customRules = is_array($customRules) ? $customRules : [];
-    }
-
-    private function saveCustomRules(): bool
-    {
-        return update_option('ms_custom_waf_rules', $this->customRules);
-    }
-
-    private function evaluateRule(array $rule, array $requestData): array
-    {
-        if (!($rule['enabled'] ?? true)) {
+    private function evaluateRule(array $rule, array $requestData): array {
+        if (!$this->isValidRule($rule)) {
             return ['triggered' => false];
         }
 
         $pattern = $rule['pattern'];
         $flags = $rule['flags'] ?? 'i';
+        $targets = $rule['targets'] ?? ['all'];
 
         foreach ($requestData as $source => $data) {
-            if (preg_match("/{$pattern}/{$flags}", $data, $matches)) {
+            if (!$this->shouldCheckTarget($targets, $source)) {
+                continue;
+            }
+
+            if (is_string($data) && $this->matchesPattern($pattern, $data, $flags)) {
                 return [
                     'triggered' => true,
-                    'matched_data' => $matches[0] ?? '',
+                    'matched_data' => $this->extractMatchedData($pattern, $data, $flags),
                     'source' => $source
                 ];
             }
@@ -154,68 +139,86 @@ class WAFRules
         return ['triggered' => false];
     }
 
-    private function getDefaultRuleset(string $filename): array
-    {
-        switch ($filename) {
-            case 'owasp-core.json':
-                return [
-                    [
-                        'id' => 'OWASP_001',
-                        'name' => 'SQL Injection Detection',
-                        'pattern' => '(union.*select|select.*from|insert.*into)',
-                        'severity' => 8,
-                        'action' => 'block',
-                        'message' => 'SQL injection attempt detected',
-                        'enabled' => true
-                    ],
-                    [
-                        'id' => 'OWASP_002',
-                        'name' => 'XSS Detection',
-                        'pattern' => '(<script|javascript:|on\w+\s*=)',
-                        'severity' => 7,
-                        'action' => 'block',
-                        'message' => 'Cross-site scripting attempt detected',
-                        'enabled' => true
-                    ]
-                ];
+    private function matchesPattern(string $pattern, string $data, string $flags): bool {
+        $compiledPattern = "/{$pattern}/{$flags}";
 
-            case 'wordpress-specific.json':
-                return [
-                    [
-                        'id' => 'WP_001',
-                        'name' => 'WordPress Config Access',
-                        'pattern' => '(wp-config\.php|\.htaccess)',
-                        'severity' => 9,
-                        'action' => 'block',
-                        'message' => 'Attempt to access WordPress configuration files',
-                        'enabled' => true
-                    ],
-                    [
-                        'id' => 'WP_002',
-                        'name' => 'Plugin Directory Traversal',
-                        'pattern' => '(\/wp-content\/plugins\/.*\.\.\/)',
-                        'severity' => 8,
-                        'action' => 'block',
-                        'message' => 'Directory traversal in plugins directory',
-                        'enabled' => true
-                    ]
-                ];
+        // Suppress errors untuk pattern yang tidak valid
+        set_error_handler(function() { return true; });
+        $result = @preg_match($compiledPattern, $data);
+        restore_error_handler();
 
-            case 'ecommerce-protection.json':
-                return [
-                    [
-                        'id' => 'EC_001',
-                        'name' => 'Credit Card Pattern',
-                        'pattern' => '\b(?:\d{4}[-\s]?){3}\d{4}\b',
-                        'severity' => 6,
-                        'action' => 'monitor',
-                        'message' => 'Credit card pattern detected in request',
-                        'enabled' => true
-                    ]
-                ];
+        return $result === 1;
+    }
 
-            default:
-                return [];
+    private function extractMatchedData(string $pattern, string $data, string $flags): string {
+        $compiledPattern = "/{$pattern}/{$flags}";
+
+        set_error_handler(function() { return true; });
+        $matches = [];
+        @preg_match($compiledPattern, $data, $matches);
+        restore_error_handler();
+
+        return $matches[0] ?? substr($data, 0, 100);
+    }
+
+    private function shouldCheckTarget(array $targets, string $source): bool {
+        return in_array('all', $targets) || in_array($source, $targets);
+    }
+
+    private function isValidRule(array $rule): bool {
+        return isset($rule['id'], $rule['pattern']) && !empty($rule['pattern']);
+    }
+
+    private function validateRuleGroup(array $rules): bool {
+        foreach ($rules as $rule) {
+            if (!$this->isValidRule($rule)) {
+                return false;
+            }
         }
+        return true;
+    }
+
+    private function updateRuleStatistics(string $ruleId, string $groupName): void {
+        // Update statistics untuk monitoring
+        $stats = get_option('ms_waf_rule_stats', []);
+        $key = "{$groupName}:{$ruleId}";
+
+        if (!isset($stats[$key])) {
+            $stats[$key] = ['hits' => 0, 'last_hit' => 0];
+        }
+
+        $stats[$key]['hits']++;
+        $stats[$key]['last_hit'] = time();
+
+        update_option('ms_waf_rule_stats', $stats);
+    }
+
+    private function getBuiltinRules(): array {
+        return [
+            'emergency' => [
+                [
+                    'id' => 'EMERGENCY_001',
+                    'name' => 'Critical SQL Injection',
+                    'pattern' => '(union\s+select|drop\s+table|truncate\s+table)',
+                    'severity' => 10,
+                    'action' => 'block',
+                    'message' => 'Critical SQL injection attempt detected',
+                    'category' => 'sql_injection',
+                    'enabled' => true,
+                    'targets' => ['all']
+                ],
+                [
+                    'id' => 'EMERGENCY_002',
+                    'name' => 'Remote Code Execution',
+                    'pattern' => '(eval\s*\(|exec\s*\(|system\s*\(|shell_exec)',
+                    'severity' => 10,
+                    'action' => 'block',
+                    'message' => 'Remote code execution attempt detected',
+                    'category' => 'code_injection',
+                    'enabled' => true,
+                    'targets' => ['all']
+                ]
+            ]
+        ];
     }
 }

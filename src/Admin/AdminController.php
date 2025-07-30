@@ -4,6 +4,12 @@ namespace MordenSecurity\Admin;
 
 use MordenSecurity\Core\LoggerSQLite;
 use MordenSecurity\Core\SecurityCore;
+use MordenSecurity\Admin\Dashboard;
+use MordenSecurity\Admin\IPManagementPage;
+use MordenSecurity\Admin\BotDetectionPage;
+use MordenSecurity\Admin\CountryManagementPage;
+use MordenSecurity\Admin\Settings;
+use MordenSecurity\Utils\IPUtils;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -13,31 +19,32 @@ class AdminController
 {
     private LoggerSQLite $logger;
     private SecurityCore $securityCore;
-    private array $pages;
+    private Settings $settings;
 
     public function __construct()
     {
         $this->logger = new LoggerSQLite();
         $this->securityCore = new SecurityCore();
-        $this->initializePages();
+        $this->settings = new Settings();
         $this->registerHooks();
     }
 
-    public function registerHooks(): void
+    private function registerHooks(): void
     {
         add_action('admin_menu', [$this, 'addAdminMenus']);
         add_action('admin_enqueue_scripts', [$this, 'enqueueAdminAssets']);
         add_action('wp_ajax_ms_get_security_stats', [$this, 'handleSecurityStatsAjax']);
         add_action('wp_ajax_ms_block_ip', [$this, 'handleBlockIPAjax']);
+        add_action('wp_ajax_ms_get_ip_logs', [$this, 'handleGetIPLogsAjax']);
         add_action('wp_ajax_ms_unblock_ip', [$this, 'handleUnblockIPAjax']);
-        add_action('admin_init', [$this, 'handleSettingsUpdates']);
+        add_action('init', [$this, 'initializeAjaxHandlers']);
     }
 
     public function addAdminMenus(): void
     {
         add_menu_page(
-            __('Morden Security', 'morden-security'),
-            __('Morden Security', 'morden-security'),
+            'Morden Security',
+            'Morden Security',
             'manage_options',
             'morden-security',
             [$this, 'renderDashboard'],
@@ -47,8 +54,8 @@ class AdminController
 
         add_submenu_page(
             'morden-security',
-            __('Dashboard', 'morden-security'),
-            __('Dashboard', 'morden-security'),
+            'Dashboard',
+            'Dashboard',
             'manage_options',
             'morden-security',
             [$this, 'renderDashboard']
@@ -56,8 +63,8 @@ class AdminController
 
         add_submenu_page(
             'morden-security',
-            __('IP Management', 'morden-security'),
-            __('IP Management', 'morden-security'),
+            'IP Management',
+            'IP Management',
             'manage_options',
             'morden-security-ips',
             [$this, 'renderIPManagement']
@@ -65,8 +72,8 @@ class AdminController
 
         add_submenu_page(
             'morden-security',
-            __('Bot Detection', 'morden-security'),
-            __('Bot Detection', 'morden-security'),
+            'Bot Detection',
+            'Bot Detection',
             'manage_options',
             'morden-security-bots',
             [$this, 'renderBotDetection']
@@ -74,12 +81,49 @@ class AdminController
 
         add_submenu_page(
             'morden-security',
-            __('Settings', 'morden-security'),
-            __('Settings', 'morden-security'),
+            'Country Management',
+            'Country Management',
+            'manage_options',
+            'morden-security-countries',
+            [$this, 'renderCountryManagement']
+        );
+        add_submenu_page(
+            'morden-security',
+            'Settings',
+            'Settings',
             'manage_options',
             'morden-security-settings',
             [$this, 'renderSettings']
         );
+    }
+
+    public function renderDashboard(): void
+    {
+        $dashboard = new Dashboard($this->logger, $this->securityCore);
+        $dashboard->render();
+    }
+
+    public function renderIPManagement(): void
+    {
+        $ipManagement = new IPManagementPage($this->logger);
+        $ipManagement->render();
+    }
+
+    public function renderBotDetection(): void
+    {
+        $botDetection = new BotDetectionPage($this->logger);
+        $botDetection->render();
+    }
+
+    public function renderCountryManagement(): void
+    {
+        $countryManagement = new CountryManagementPage($this->logger);
+        $countryManagement->render();
+    }
+
+    public function renderSettings(): void
+    {
+        $this->settings->render();
     }
 
     public function enqueueAdminAssets(string $hook): void
@@ -105,37 +149,8 @@ class AdminController
 
         wp_localize_script('ms-admin-dashboard', 'msAdmin', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('ms_admin_nonce'),
-            'strings' => [
-                'confirmBlock' => __('Are you sure you want to block this IP?', 'morden-security'),
-                'confirmUnblock' => __('Are you sure you want to unblock this IP?', 'morden-security'),
-                'error' => __('An error occurred. Please try again.', 'morden-security')
-            ]
+            'nonce' => wp_create_nonce('ms_admin_nonce')
         ]);
-    }
-
-    public function renderDashboard(): void
-    {
-        $dashboard = new Dashboard($this->logger, $this->securityCore);
-        $dashboard->render();
-    }
-
-    public function renderIPManagement(): void
-    {
-        $ipManagement = new IPManagementPage($this->logger);
-        $ipManagement->render();
-    }
-
-    public function renderBotDetection(): void
-    {
-        $botDetection = new BotDetectionPage($this->logger);
-        $botDetection->render();
-    }
-
-    public function renderSettings(): void
-    {
-        $settings = new Settings();
-        $settings->render();
     }
 
     public function handleSecurityStatsAjax(): void
@@ -143,11 +158,30 @@ class AdminController
         check_ajax_referer('ms_admin_nonce', 'nonce');
 
         if (!current_user_can('manage_options')) {
-            wp_die(__('Insufficient permissions', 'morden-security'));
+            wp_send_json_error(__('Insufficient permissions', 'morden-security'), 403);
         }
 
-        $stats = $this->getSecurityStatistics();
+        $stats = $this->logger->getSecurityStats();
         wp_send_json_success($stats);
+    }
+
+    public function handleGetIPLogsAjax(): void
+    {
+        check_ajax_referer('ms_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Insufficient permissions', 'morden-security'), 403);
+        }
+
+        $ipAddress = sanitize_text_field($_POST['ip_address'] ?? '');
+
+        if (empty($ipAddress) || !\MordenSecurity\Utils\IPUtils::isValidIP($ipAddress)) {
+            wp_send_json_error(__('Invalid IP address provided.', 'morden-security'), 400);
+        }
+
+        $logs = $this->logger->getRecentEvents(100, ['ip_address' => $ipAddress]);
+
+        wp_send_json_success($logs);
     }
 
     public function handleBlockIPAjax(): void
@@ -155,34 +189,25 @@ class AdminController
         check_ajax_referer('ms_admin_nonce', 'nonce');
 
         if (!current_user_can('manage_options')) {
-            wp_die(__('Insufficient permissions', 'morden-security'));
+            wp_send_json_error(__('Insufficient permissions', 'morden-security'), 403);
         }
 
         $ipAddress = sanitize_text_field($_POST['ip_address'] ?? '');
-        $reason = sanitize_text_field($_POST['reason'] ?? 'manual_block');
-        $duration = sanitize_text_field($_POST['duration'] ?? 'permanent');
-
-        if (empty($ipAddress)) {
-            wp_send_json_error(__('Invalid IP address', 'morden-security'));
+        if (!\MordenSecurity\Utils\IPUtils::isValidIP($ipAddress)) {
+            wp_send_json_error(__('Invalid IP address provided.', 'morden-security'));
         }
 
-        $ruleData = [
-            'ip_address' => $ipAddress,
-            'rule_type' => 'blacklist',
-            'block_duration' => $duration,
-            'reason' => $reason,
-            'block_source' => 'manual',
-            'created_by' => get_current_user_id(),
-            'threat_score' => 0,
-            'notes' => "Manually blocked by " . wp_get_current_user()->user_login
+        $blocker = new \MordenSecurity\Modules\IPManagement\IPBlocker($this->logger);
+        $blockData = [
+            'reason' => sanitize_text_field($_POST['reason'] ?? 'Manual block from admin'),
+            'duration' => sanitize_key($_POST['duration'] ?? 'permanent'),
+            'source' => 'admin_ui'
         ];
 
-        $success = $this->logger->addIPRule($ruleData);
-
-        if ($success) {
-            wp_send_json_success(__('IP address blocked successfully', 'morden-security'));
+        if ($blocker->addBlock($ipAddress, $blockData)) {
+            wp_send_json_success(__('IP address blocked successfully.', 'morden-security'));
         } else {
-            wp_send_json_error(__('Failed to block IP address', 'morden-security'));
+            wp_send_json_error(__('Failed to block IP address.', 'morden-security'));
         }
     }
 
@@ -191,176 +216,125 @@ class AdminController
         check_ajax_referer('ms_admin_nonce', 'nonce');
 
         if (!current_user_can('manage_options')) {
-            wp_die(__('Insufficient permissions', 'morden-security'));
+            wp_send_json_error(__('Insufficient permissions', 'morden-security'), 403);
         }
 
         $ipAddress = sanitize_text_field($_POST['ip_address'] ?? '');
-
-        if (empty($ipAddress)) {
-            wp_send_json_error(__('Invalid IP address', 'morden-security'));
+        if (!\MordenSecurity\Utils\IPUtils::isValidIP($ipAddress)) {
+            wp_send_json_error(__('Invalid IP address provided.', 'morden-security'));
         }
 
-        $success = $this->unblockIP($ipAddress);
-
-        if ($success) {
-            wp_send_json_success(__('IP address unblocked successfully', 'morden-security'));
+        $blocker = new \MordenSecurity\Modules\IPManagement\IPBlocker($this->logger);
+        if ($blocker->removeBlock($ipAddress)) {
+            wp_send_json_success(__('IP address unblocked successfully.', 'morden-security'));
         } else {
-            wp_send_json_error(__('Failed to unblock IP address', 'morden-security'));
+            wp_send_json_error(__('Failed to unblock IP address. It may not be blocked.', 'morden-security'));
         }
     }
 
-    public function handleSettingsUpdates(): void
-    {
-        if (!isset($_POST['ms_settings_nonce']) ||
-            !wp_verify_nonce($_POST['ms_settings_nonce'], 'ms_save_settings')) {
-            return;
+    public function initializeAjaxHandlers(): void {
+    add_action('wp_ajax_ms_get_ip_details', [$this, 'handleGetIPDetails']);
+}
+
+public function handleGetIPDetails(): void {
+    // Verify nonce
+    if (!wp_verify_nonce($_POST['nonce'] ?? '', 'ms_admin_nonce')) {
+        wp_die(json_encode([
+            'success' => false,
+            'data' => 'Security check failed'
+        ]));
+    }
+
+    $ipAddress = sanitize_text_field($_POST['ip_address'] ?? '');
+
+    if (empty($ipAddress)) {
+        wp_send_json_error('IP address is required');
+        return;
+    }
+
+    if (!filter_var($ipAddress, FILTER_VALIDATE_IP)) {
+        wp_send_json_error('Invalid IP address format');
+        return;
+    }
+
+    try {
+        $ipDetails = IPUtils::getIPDetails($ipAddress);
+
+        if ($ipDetails['success']) {
+            $logger = new LoggerSQLite();
+            $events = $logger->getEventsByIP($ipAddress, 50);
+            $eventCount = $logger->getRecentEvents(1000, ['ip_address' => $ipAddress]);
+
+            $firstSeenTimestamp = !empty($events) ? $events[count($events) - 1]['timestamp'] : time();
+            $lastSeenTimestamp = !empty($events) ? $events[0]['timestamp'] : time();
+
+            $response = [
+                'ip_address' => $ipAddress,
+                'country_code' => $ipDetails['country_code'] ?? 'UNKNOWN',
+                'country' => $ipDetails['country_name'] ?? 'Unknown',
+                'city' => $ipDetails['city'] ?? 'Unknown',
+                'isp' => $ipDetails['isp'] ?? 'Unknown',
+                'region' => $ipDetails['region'] ?? 'Unknown',
+                'timezone' => $ipDetails['timezone'] ?? 'Unknown',
+                'total_events' => $eventCount,
+                'threat_score' => $this->calculateThreatScore($events),
+                'recent_events' => array_slice($events, 0, 10),
+                'first_seen' => $this->formatTimestamp($firstSeenTimestamp),
+                'last_seen' => $this->formatTimestamp($lastSeenTimestamp)
+            ];
+
+            wp_send_json_success($response);
+        } else {
+            wp_send_json_error($ipDetails['error'] ?? 'Failed to get IP details');
         }
 
-        if (!current_user_can('manage_options')) {
-            return;
-        }
+    } catch (Exception $e) {
+        error_log('MS IP Details Error: ' . $e->getMessage());
+        wp_send_json_error('Internal server error');
+    }
+}
 
-        $settingsToUpdate = [
-            'ms_firewall_enabled' => 'bool',
-            'ms_auto_blocking_enabled' => 'bool',
-            'ms_bot_detection_enabled' => 'bool',
-            'ms_logging_enabled' => 'bool',
-            'ms_temp_block_duration' => 'int',
-            'ms_perm_block_threshold' => 'int',
-            'ms_bot_challenge_threshold' => 'int',
-            'ms_bot_block_threshold' => 'int'
-        ];
-
-        foreach ($settingsToUpdate as $setting => $type) {
-            if (isset($_POST[$setting])) {
-                $value = $_POST[$setting];
-
-                switch ($type) {
-                    case 'bool':
-                        $value = (bool) $value;
-                        break;
-                    case 'int':
-                        $value = (int) $value;
-                        break;
-                    default:
-                        $value = sanitize_text_field($value);
-                }
-
-                update_option($setting, $value);
-            }
-        }
-
-        add_action('admin_notices', function() {
-            echo '<div class="notice notice-success"><p>' .
-                 __('Settings saved successfully.', 'morden-security') .
-                 '</p></div>';
-        });
+private function calculateThreatScore(array $events): int {
+    if (empty($events)) {
+        return 0;
     }
 
-    private function initializePages(): void
-    {
-        $this->pages = [
-            'dashboard' => Dashboard::class,
-            'ip_management' => IPManagementPage::class,
-            'bot_detection' => BotDetectionPage::class,
-            'settings' => Settings::class
-        ];
+    $score = 0;
+    foreach ($events as $event) {
+        $severity = $event['severity'] ?? 1;
+        $score += $severity;
     }
 
-    private function getSecurityStatistics(): array
-    {
-        $recentEvents = $this->logger->getRecentEvents(1000);
+    return min(100, $score);
+}
 
-        $stats = [
-            'total_events' => count($recentEvents),
-            'blocked_requests' => 0,
-            'bot_detections' => 0,
-            'firewall_blocks' => 0,
-            'threat_level' => 'low',
-            'top_threats' => [],
-            'hourly_stats' => []
-        ];
-
-        $eventTypes = array_count_values(array_column($recentEvents, 'event_type'));
-
-        $stats['blocked_requests'] = $eventTypes['request_blocked'] ?? 0;
-        $stats['bot_detections'] = $eventTypes['bot_detected'] ?? 0;
-        $stats['firewall_blocks'] = $eventTypes['firewall_block'] ?? 0;
-
-        $stats['threat_level'] = $this->calculateThreatLevel($recentEvents);
-        $stats['top_threats'] = $this->getTopThreats($recentEvents);
-        $stats['hourly_stats'] = $this->getHourlyStatistics($recentEvents);
-
-        return $stats;
+private function formatTimestamp(int $timestamp): string {
+    if ($timestamp <= 0) {
+        return 'Never';
     }
 
-    private function calculateThreatLevel(array $events): string
-    {
-        $recentThreats = array_filter($events, function($event) {
-            return $event['timestamp'] > time() - 3600 &&
-                   in_array($event['event_type'], ['request_blocked', 'bot_detected', 'firewall_block']);
-        });
+    return wp_date('d-m-y H:i:s', $timestamp);
+}
 
-        $threatCount = count($recentThreats);
 
-        if ($threatCount > 50) return 'critical';
-        if ($threatCount > 20) return 'high';
-        if ($threatCount > 5) return 'medium';
-        return 'low';
+private function getRelativeTime(int $timestamp): string {
+    if ($timestamp <= 0) {
+        return 'Never';
     }
 
-    private function getTopThreats(array $events): array
-    {
-        $ipCounts = [];
+    $diff = time() - $timestamp;
 
-        foreach ($events as $event) {
-            if (in_array($event['event_type'], ['request_blocked', 'bot_detected', 'firewall_block'])) {
-                $ip = $event['ip_address'];
-                $ipCounts[$ip] = ($ipCounts[$ip] ?? 0) + 1;
-            }
-        }
-
-        arsort($ipCounts);
-        return array_slice($ipCounts, 0, 10, true);
+    if ($diff < 60) {
+        return $diff . ' seconds ago';
+    } elseif ($diff < 3600) {
+        return floor($diff / 60) . ' minutes ago';
+    } elseif ($diff < 86400) {
+        return floor($diff / 3600) . ' hours ago';
+    } elseif ($diff < 2592000) {
+        return floor($diff / 86400) . ' days ago';
+    } else {
+        return wp_date('d M Y', $timestamp);
     }
+}
 
-    private function getHourlyStatistics(array $events): array
-    {
-        $hourlyStats = array_fill(0, 24, ['blocked' => 0, 'allowed' => 0]);
-
-        foreach ($events as $event) {
-            $hour = (int) date('H', $event['timestamp']);
-
-            if (in_array($event['event_type'], ['request_blocked', 'bot_detected', 'firewall_block'])) {
-                $hourlyStats[$hour]['blocked']++;
-            } else {
-                $hourlyStats[$hour]['allowed']++;
-            }
-        }
-
-        return $hourlyStats;
-    }
-
-    private function unblockIP(string $ipAddress): bool
-    {
-        try {
-            $stmt = $this->logger->database->prepare('
-                UPDATE ms_ip_rules
-                SET is_active = 0,
-                    updated_at = CURRENT_TIMESTAMP,
-                    notes = COALESCE(notes, "") || " - Manually unblocked"
-                WHERE ip_address = ? AND is_active = 1
-            ');
-
-            if ($stmt) {
-                $stmt->bindValue(1, $ipAddress, SQLITE3_TEXT);
-                $result = $stmt->execute();
-                return $result !== false;
-            }
-        } catch (Exception $e) {
-            error_log("MS: Failed to unblock IP {$ipAddress} - " . $e->getMessage());
-        }
-
-        return false;
-    }
 }

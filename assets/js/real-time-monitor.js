@@ -209,7 +209,7 @@
             $.ajax({
                 url: msAdmin.ajaxUrl,
                 type: 'POST',
-                 {
+                data: {
                     action: 'ms_get_security_stats',
                     nonce: msAdmin.nonce
                 },

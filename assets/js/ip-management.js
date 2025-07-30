@@ -33,7 +33,7 @@
             $.ajax({
                 url: msAdmin.ajaxUrl,
                 type: 'POST',
-                 {
+                data: {
                     action: 'ms_block_ip',
                     nonce: msAdmin.nonce,
                     ip_address: ipAddress,
@@ -75,7 +75,7 @@
             $.ajax({
                 url: msAdmin.ajaxUrl,
                 type: 'POST',
-                 {
+                data: {
                     action: 'ms_unblock_ip',
                     nonce: msAdmin.nonce,
                     ip_address: ipAddress
@@ -125,7 +125,7 @@
             $.ajax({
                 url: msAdmin.ajaxUrl,
                 type: 'POST',
-                 {
+                data: {
                     action: 'ms_remove_bot_whitelist',
                     nonce: msAdmin.nonce,
                     bot_id: botId
@@ -203,7 +203,7 @@
             $.ajax({
                 url: '',
                 type: 'POST',
-                 formData,
+                data: formData,
                 success(response) {
                     if (response && response.includes('success')) {
                         MordenIPManagement.showNotice('success', 'IP rule added successfully');
@@ -267,7 +267,7 @@
             $.ajax({
                 url: msAdmin.ajaxUrl,
                 type: 'POST',
-                 {
+                data: {
                     action: 'ms_get_ip_logs',
                     nonce: msAdmin.nonce,
                     ip_address: ipAddress
@@ -353,7 +353,7 @@
                 return $.ajax({
                     url: msAdmin.ajaxUrl,
                     type: 'POST',
-                     {
+                    data: {
                         action: 'ms_unblock_ip',
                         nonce: msAdmin.nonce,
                         ip_address: ip

@@ -64,24 +64,26 @@ jobs:
         echo "Security scan placeholder"
         # Add actual security scanning tools here
 
-build:
-  needs: [test]
-  runs-on: ubuntu-latest
-  if: github.event_name == 'release'
+  build:
+    needs: [test]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
 
-  steps:
-  - uses: actions/checkout@v3
-  - name: Build plugin package
-    run: |
-      mkdir -p build
-      rsync -av --exclude-from='.distignore' . build/morden-security/
-      cd build && zip -r morden-security.zip morden-security/
-  - name: Upload release asset
-    uses: actions/upload-release-asset@v1
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    with:
-      upload_url: ${{ github.event.release.upload_url }}
-      asset_path: ./build/morden-security.zip
-      asset_name: morden-security.zip
-      asset_content_type: application/zip
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build plugin package
+      run: |
+        mkdir -p build
+        rsync -av --exclude-from='.distignore' . build/morden-security/
+        cd build && zip -r morden-security.zip morden-security/
+
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./build/morden-security.zip
+        asset_name: morden-security.zip
+        asset_content_type: application/zip

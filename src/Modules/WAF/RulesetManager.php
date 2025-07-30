@@ -228,44 +228,69 @@ class RulesetManager
         return null;
     }
 
-    private function validateRuleset(array $ruleset): bool
-    {
-        if (!isset($ruleset['metadata']) || !isset($ruleset['rules'])) {
-            return false;
-        }
-
-        if (!is_array($ruleset['metadata']) || !is_array($ruleset['rules'])) {
-            return false;
-        }
-
-        foreach ($ruleset['rules'] as $rule) {
-            if (!$this->validateRule($rule)) {
-                return false;
-            }
-        }
-
-        return true;
+private function validateRuleset(array $ruleset): bool
+{
+    // Check for required top-level keys
+    if (!isset($ruleset['metadata']) || !isset($ruleset['rules'])) {
+        error_log("MS: Ruleset validation failed - missing metadata or rules key");
+        return false;
     }
 
-    private function validateRule(array $rule): bool
-    {
-        $requiredFields = ['id', 'name', 'pattern', 'severity', 'action', 'message'];
+    // Check metadata is array
+    if (!is_array($ruleset['metadata'])) {
+        error_log("MS: Ruleset validation failed - metadata is not an array");
+        return false;
+    }
 
-        foreach ($requiredFields as $field) {
-            if (!isset($rule[$field])) {
-                return false;
-            }
-        }
+    // Check rules is array
+    if (!is_array($ruleset['rules'])) {
+        error_log("MS: Ruleset validation failed - rules is not an array");
+        return false;
+    }
 
-        if (!is_numeric($rule['severity']) || $rule['severity'] < 1 || $rule['severity'] > 10) {
+    // Validate each rule
+    foreach ($ruleset['rules'] as $index => $rule) {
+        if (!$this->validateRule($rule)) {
+            error_log("MS: Ruleset validation failed - invalid rule at index {$index}");
+            error_log("MS: Rule data: " . json_encode($rule));
             return false;
         }
+    }
 
-        if (!in_array($rule['action'], ['allow', 'block', 'monitor', 'challenge'], true)) {
+    return true;
+}
+
+private function validateRule(array $rule): bool
+{
+    $requiredFields = ['id', 'name', 'pattern', 'severity', 'action', 'message'];
+
+    foreach ($requiredFields as $field) {
+        if (!isset($rule[$field])) {
+            error_log("MS: Rule validation failed - missing required field: {$field}");
             return false;
         }
+    }
 
-        return true;
+    // Validate severity
+    if (!is_numeric($rule['severity']) || $rule['severity'] < 1 || $rule['severity'] > 10) {
+        error_log("MS: Rule validation failed - invalid severity: " . $rule['severity']);
+        return false;
+    }
+
+    // Validate action
+    $validActions = ['allow', 'block', 'monitor', 'challenge'];
+    if (!in_array($rule['action'], $validActions, true)) {
+        error_log("MS: Rule validation failed - invalid action: " . $rule['action']);
+        return false;
+    }
+
+    // Validate pattern (basic regex check)
+    if (empty($rule['pattern'])) {
+        error_log("MS: Rule validation failed - empty pattern");
+        return false;
+    }
+
+    return true;
     }
 
     private function getRulesetVersion(string $rulesetName): string
@@ -279,51 +304,92 @@ class RulesetManager
         return '1.0.0';
     }
 
-    private function getDefaultRuleset(string $rulesetName): ?array
-    {
-        $defaults = [
-            'owasp-core' => [
-                'metadata' => [
-                    'name' => 'OWASP Core Rule Set',
-                    'version' => '1.0.0',
-                    'description' => 'Core OWASP security rules'
-                ],
-                'rules' => [
-                    [
-                        'id' => 'OWASP_001',
-                        'name' => 'SQL Injection Detection',
-                        'pattern' => '(union.*select|select.*from)',
-                        'severity' => 9,
-                        'action' => 'block',
-                        'message' => 'SQL injection attempt detected',
-                        'category' => 'sql_injection',
-                        'enabled' => true
-                    ]
-                ]
+private function getDefaultRuleset(string $rulesetName): ?array
+{
+    $defaults = [
+        'owasp-core' => [
+            'metadata' => [
+                'name' => 'OWASP Core Rule Set',
+                'version' => '3.3.4',
+                'description' => 'Core OWASP security rules for web application protection',
+                'author' => 'OWASP CRS Project',
+                'created_at' => date('Y-m-d'),
+                'updated_at' => date('Y-m-d')
             ],
-            'wordpress-specific' => [
-                'metadata' => [
-                    'name' => 'WordPress Specific Rules',
-                    'version' => '1.0.0',
-                    'description' => 'WordPress-specific security rules'
+            'rules' => [
+                [
+                    'id' => 'OWASP_942100',
+                    'name' => 'SQL Injection Detection',
+                    'pattern' => '(?i)(?:union\\s+(?:all\\s+)?select|select\\s+.*\\s+from|insert\\s+into)',
+                    'severity' => 5,
+                    'action' => 'block',
+                    'message' => 'SQL injection attempt detected',
+                    'category' => 'sql_injection',
+                    'enabled' => true,
+                    'targets' => ['all']
                 ],
-                'rules' => [
-                    [
-                        'id' => 'WP_001',
-                        'name' => 'WordPress Config Access',
-                        'pattern' => 'wp-config\.php',
-                        'severity' => 10,
-                        'action' => 'block',
-                        'message' => 'Attempt to access wp-config.php',
-                        'category' => 'file_access',
-                        'enabled' => true
-                    ]
+                [
+                    'id' => 'OWASP_941100',
+                    'name' => 'XSS Detection',
+                    'pattern' => '(?i)(?:<script|javascript:|on(?:load|error|click)\\s*=)',
+                    'severity' => 4,
+                    'action' => 'block',
+                    'message' => 'Cross-site scripting (XSS) attempt detected',
+                    'category' => 'xss',
+                    'enabled' => true,
+                    'targets' => ['all']
+                ],
+                [
+                    'id' => 'OWASP_930100',
+                    'name' => 'Path Traversal Detection',
+                    'pattern' => '\\.\\.',
+                    'severity' => 5,
+                    'action' => 'block',
+                    'message' => 'Path traversal attack detected',
+                    'category' => 'lfi',
+                    'enabled' => true,
+                    'targets' => ['uri', 'query_string']
                 ]
             ]
-        ];
+        ],
+        'wordpress-specific' => [
+            'metadata' => [
+                'name' => 'WordPress Specific Rules',
+                'version' => '1.2.0',
+                'description' => 'WordPress-specific security rules',
+                'author' => 'Morden Security',
+                'created_at' => date('Y-m-d'),
+                'updated_at' => date('Y-m-d')
+            ],
+            'rules' => [
+                [
+                    'id' => 'WP_001',
+                    'name' => 'WordPress Config Access',
+                    'pattern' => 'wp-config\\.php',
+                    'severity' => 5,
+                    'action' => 'block',
+                    'message' => 'Attempt to access wp-config.php',
+                    'category' => 'file_access',
+                    'enabled' => true,
+                    'targets' => ['uri']
+                ],
+                [
+                    'id' => 'WP_002',
+                    'name' => 'WordPress Admin Brute Force',
+                    'pattern' => 'wp-admin.*wp-login\\.php.*pwd',
+                    'severity' => 4,
+                    'action' => 'monitor',
+                    'message' => 'Potential WordPress admin brute force attempt',
+                    'category' => 'brute_force',
+                    'enabled' => true,
+                    'targets' => ['uri', 'post_data']
+                ]
+            ]
+        ]
+    ];
 
-        return $defaults[$rulesetName] ?? null;
-    }
+    return $defaults[$rulesetName] ?? null;
+}
 
     private function logRulesetAction(string $rulesetName, string $action): void
     {

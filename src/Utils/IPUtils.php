@@ -154,6 +154,10 @@ class IPUtils
 
     private static function ipv4InRange(string $ip, string $subnet, int $bits): bool
     {
+        if ($bits < 0 || $bits > 32) {
+            return false;
+        }
+
         $ip = ip2long($ip);
         $subnet = ip2long($subnet);
         $mask = -1 << (32 - $bits);
@@ -163,6 +167,10 @@ class IPUtils
 
     private static function ipv6InRange(string $ip, string $subnet, int $bits): bool
     {
+        if ($bits < 0 || $bits > 128) {
+            return false;
+        }
+
         $ip = inet_pton($ip);
         $subnet = inet_pton($subnet);
 
@@ -196,4 +204,115 @@ class IPUtils
 
         return $countries[$countryCode] ?? 'Unknown';
     }
+    public static function getIPDetails(string $ipAddress): array {
+    // Validasi IP
+    if (!self::isValidIP($ipAddress)) {
+        return [
+            'success' => false,
+            'error' => 'Invalid IP address format'
+        ];
+    }
+
+    // Check cache first
+    $cacheKey = 'ms_ip_details_' . md5($ipAddress);
+    $cached = get_transient($cacheKey);
+    if ($cached !== false) {
+        return $cached;
+    }
+
+    // Skip private IPs
+    if (self::isPrivateIP($ipAddress)) {
+        return [
+            'success' => true,
+            'ip' => $ipAddress,
+            'country_code' => 'LOCAL',
+            'country_name' => 'Local Network',
+            'city' => 'Private',
+            'is_private' => true
+        ];
+    }
+
+    // Try free IP API services
+    $apis = [
+        'http://ip-api.com/json/' . $ipAddress . '?fields=status,country,countryCode,region,regionName,city,isp,org,timezone,query',
+        'https://ipapi.co/' . $ipAddress . '/json/',
+    ];
+
+    foreach ($apis as $url) {
+        $result = self::makeAPIRequest($url);
+        if ($result['success']) {
+            // Cache for 24 hours
+            set_transient($cacheKey, $result, 24 * HOUR_IN_SECONDS);
+            return $result;
+        }
+    }
+
+    // Fallback to local geo detection
+    $geoData = self::getGeoLocation($ipAddress);
+    return [
+        'success' => true,
+        'ip' => $ipAddress,
+        'country_code' => $geoData['country_code'],
+        'country_name' => $geoData['country_name'],
+        'city' => 'Unknown',
+        'source' => 'local_headers'
+    ];
+}
+
+private static function makeAPIRequest(string $url): array {
+    $args = [
+        'timeout' => 10,
+        'headers' => [
+            'User-Agent' => 'Mozilla/5.0 (compatible; MordenSecurity/1.0)',
+            'Accept' => 'application/json'
+        ],
+        'sslverify' => false // untuk menghindari SSL issues
+    ];
+
+    $response = wp_remote_get($url, $args);
+
+    if (is_wp_error($response)) {
+        return [
+            'success' => false,
+            'error' => $response->get_error_message()
+        ];
+    }
+
+    $statusCode = wp_remote_retrieve_response_code($response);
+    if ($statusCode !== 200) {
+        return [
+            'success' => false,
+            'error' => "HTTP Error: {$statusCode}"
+        ];
+    }
+
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return [
+            'success' => false,
+            'error' => 'Invalid JSON response'
+        ];
+    }
+
+    // Normalize data berdasarkan provider
+    if (isset($data['status']) && $data['status'] === 'fail') {
+        return [
+            'success' => false,
+            'error' => $data['message'] ?? 'API request failed'
+        ];
+    }
+
+    return [
+        'success' => true,
+        'ip' => $data['query'] ?? $data['ip'] ?? '',
+        'country_code' => $data['countryCode'] ?? $data['country_code'] ?? 'UNKNOWN',
+        'country_name' => $data['country'] ?? $data['country_name'] ?? 'Unknown',
+        'city' => $data['city'] ?? 'Unknown',
+        'region' => $data['regionName'] ?? $data['region'] ?? '',
+        'isp' => $data['isp'] ?? $data['org'] ?? '',
+        'timezone' => $data['timezone'] ?? ''
+    ];
+}
 }

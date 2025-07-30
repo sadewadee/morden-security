@@ -18,9 +18,18 @@ class CountryBlocker
     public function __construct(LoggerSQLite $logger)
     {
         $this->logger = $logger;
+
+        $blockedCountriesOption = get_option('ms_blocked_countries', []);
+        // Ensure that the option is always an array, handling the case where it's a newline-separated string from a textarea.
+        if (is_string($blockedCountriesOption)) {
+            $blockedCountries = array_filter(array_map('trim', explode("\n", $blockedCountriesOption)));
+        } else {
+            $blockedCountries = (array) $blockedCountriesOption;
+        }
+
         $this->config = [
             'country_blocking_enabled' => get_option('ms_country_blocking_enabled', false),
-            'blocked_countries' => get_option('ms_blocked_countries', []),
+            'blocked_countries' => $blockedCountries,
             'whitelisted_countries' => get_option('ms_whitelisted_countries', []),
             'block_mode' => get_option('ms_country_block_mode', 'blacklist')
         ];
@@ -124,37 +133,22 @@ class CountryBlocker
 
     public function getCountryStatistics(): array
     {
-        $events = $this->logger->getRecentEvents(5000);
-        $countryStats = [];
-        $blockedByCountry = [];
+        $countryStatsFromDb = $this->logger->getCountryStats(20);
+        $countryBreakdown = [];
 
-        foreach ($events as $event) {
-            $country = $event['country_code'] ?? 'Unknown';
-
-            if (!isset($countryStats[$country])) {
-                $countryStats[$country] = [
-                    'code' => $country,
-                    'name' => $this->getCountryName($country),
-                    'total_requests' => 0,
-                    'blocked_requests' => 0,
-                    'threat_score' => 0
-                ];
-            }
-
-            $countryStats[$country]['total_requests']++;
-
-            if (in_array($event['event_type'], ['request_blocked', 'country_blocked'])) {
-                $countryStats[$country]['blocked_requests']++;
-            }
-
-            $countryStats[$country]['threat_score'] += $event['threat_score'] ?? 0;
+        foreach ($countryStatsFromDb as $code => $stats) {
+            $countryBreakdown[] = [
+                'code' => $code,
+                'name' => $this->getCountryName($code),
+                'total_requests' => (int) ($stats['total_requests'] ?? 0),
+                'blocked_requests' => (int) ($stats['blocked_requests'] ?? 0),
+                'threat_score' => (int) ($stats['total_threat_score'] ?? 0)
+            ];
         }
 
-        uasort($countryStats, fn($a, $b) => $b['total_requests'] <=> $a['total_requests']);
-
         return [
-            'country_breakdown' => array_slice($countryStats, 0, 20),
-            'top_threats' => $this->getTopThreatCountries($countryStats),
+            'country_breakdown' => $countryBreakdown,
+            'top_threats' => $this->getTopThreatCountries($countryBreakdown),
             'blocked_countries' => $this->getBlockedCountries()
         ];
     }

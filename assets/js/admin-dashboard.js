@@ -32,7 +32,7 @@
             $.ajax({
                 url: msAdmin.ajaxUrl,
                 type: 'POST',
-                 {
+                data: {
                     action: 'ms_block_ip',
                     nonce: msAdmin.nonce,
                     ip_address: ipAddress,
@@ -73,7 +73,7 @@
             $.ajax({
                 url: msAdmin.ajaxUrl,
                 type: 'POST',
-                 {
+                data: {
                     action: 'ms_unblock_ip',
                     nonce: msAdmin.nonce,
                     ip_address: ipAddress
@@ -143,7 +143,7 @@
             $.ajax({
                 url: msAdmin.ajaxUrl,
                 type: 'POST',
-                 {
+                data: {
                     action: 'ms_get_security_stats',
                     nonce: msAdmin.nonce
                 },
@@ -185,7 +185,7 @@
             $.ajax({
                 url: msAdmin.ajaxUrl,
                 type: 'POST',
-                 {
+                data: {
                     action: 'ms_get_ip_details',
                     nonce: msAdmin.nonce,
                     ip_address: ipAddress
@@ -247,7 +247,7 @@
                 return $.ajax({
                     url: msAdmin.ajaxUrl,
                     type: 'POST',
-                     {
+                    data: {
                         action: 'ms_unblock_ip',
                         nonce: msAdmin.nonce,
                         ip_address: ip
@@ -307,4 +307,64 @@
         MordenSecurityAdmin.init();
     });
 
+    const ResponsiveUtils = {
+    init() {
+        this.handleViewportChanges();
+        this.optimizeTablesForMobile();
+        this.handleModalResize();
+    },
+
+    handleViewportChanges() {
+        let resizeTimer;
+        $(window).on('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                this.optimizeTablesForMobile();
+                this.adjustCardLayout();
+            }, 250);
+        });
+    },
+
+    optimizeTablesForMobile() {
+        const $tables = $('.ms-table-container table');
+        const isMobile = window.innerWidth < 768;
+
+        if (isMobile) {
+            $tables.each(function() {
+                $(this).addClass('ms-mobile-table');
+            });
+        } else {
+            $tables.removeClass('ms-mobile-table');
+        }
+    },
+
+    adjustCardLayout() {
+        const $statCards = $('.ms-stat-cards');
+        const containerWidth = $statCards.width();
+        const cardMinWidth = 180;
+        const gap = 15;
+
+        const columns = Math.floor((containerWidth + gap) / (cardMinWidth + gap));
+        $statCards.css('grid-template-columns', `repeat(${Math.max(1, columns)}, 1fr)`);
+    },
+
+    handleModalResize() {
+        $(window).on('resize', () => {
+            $('.ms-modal-content').each(function() {
+                const $modal = $(this);
+                const maxHeight = $(window).height() * 0.9;
+                $modal.css('max-height', maxHeight + 'px');
+
+                const $body = $modal.find('.ms-modal-body');
+                const headerHeight = $modal.find('.ms-modal-header').outerHeight() || 60;
+                $body.css('max-height', (maxHeight - headerHeight - 40) + 'px');
+            });
+        });
+    }
+};
+
+// Initialize when DOM is ready
+$(document).ready(() => {
+    ResponsiveUtils.init();
+});
 })(jQuery);

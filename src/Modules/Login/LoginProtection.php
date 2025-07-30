@@ -99,20 +99,58 @@ class LoginProtection
     public function handleSuccessfulLogin(string $username): void
     {
         $ipAddress = IPUtils::getRealClientIP();
+        $user = get_user_by('login', $username);
 
-        $this->rateLimiter->clearAttempts($ipAddress, 'login');
-        $this->rateLimiter->clearAttempts($username, 'login');
+        if ($user && user_can($user, 'administrator')) {
+            $this->autoWhitelistAdmin($ipAddress, $username);
+        }
 
         $this->logger->logSecurityEvent([
             'event_type' => 'login_success',
             'severity' => 1,
             'ip_address' => $ipAddress,
-            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
             'message' => "Successful login for user: {$username}",
-            'context' => ['username' => $username],
-            'action_taken' => 'logged'
+            'context' => [
+                'username' => $username,
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                'auto_whitelisted' => user_can($user, 'administrator')
+            ],
+            'action_taken' => 'login_allowed'
         ]);
     }
+
+    private function autoWhitelistAdmin(string $ipAddress, string $username): void
+    {
+        $whitelistData = [
+            'ip_address' => $ipAddress,
+            'rule_type' => 'temp_whitelist',
+            'block_duration' => 'temporary',
+            'blocked_until' => time() + (24 * 3600), // 24 jam
+            'reason' => "Auto-whitelist admin: {$username}",
+            'threat_score' => 0,
+            'block_source' => 'admin_login',
+            'created_by' => get_user_by('login', $username)->ID,
+            'escalation_count' => 0,
+            'notes' => 'Temporary admin whitelist - 24 hours'
+        ];
+
+        $this->logger->addIPRule($whitelistData);
+
+        // Log whitelist action
+        $this->logger->logSecurityEvent([
+            'event_type' => 'admin_auto_whitelisted',
+            'severity' => 1,
+            'ip_address' => $ipAddress,
+            'message' => "Admin {$username} auto-whitelisted for 24 hours",
+            'context' => [
+                'username' => $username,
+                'duration' => '24_hours',
+                'whitelist_type' => 'admin_login'
+            ],
+            'action_taken' => 'ip_whitelisted'
+        ]);
+    }
+
 
     public function validatePassword(string $password, string $username): array
     {

@@ -8,11 +8,9 @@ if (!defined('ABSPATH')) {
 
 class Settings
 {
-    private array $settings;
-
     public function __construct()
     {
-        $this->settings = $this->getDefaultSettings();
+        add_action('admin_init', [$this, 'initializeSettings']);
     }
 
     public function render(): void
@@ -32,293 +30,487 @@ class Settings
                    class="nav-tab <?php echo $activeTab === 'firewall' ? 'nav-tab-active' : ''; ?>">
                     <?php _e('Firewall', 'morden-security'); ?>
                 </a>
-                <a href="?page=morden-security-settings&tab=bot-detection"
-                   class="nav-tab <?php echo $activeTab === 'bot-detection' ? 'nav-tab-active' : ''; ?>">
-                    <?php _e('Bot Detection', 'morden-security'); ?>
+                <a href="?page=morden-security-settings&tab=bots"
+                   class="nav-tab <?php echo $activeTab === 'bots' ? 'nav-tab-active' : ''; ?>">
+                    <?php _e('Bot Protection', 'morden-security'); ?>
                 </a>
-                <a href="?page=morden-security-settings&tab=updates"
-                   class="nav-tab <?php echo $activeTab === 'updates' ? 'nav-tab-active' : ''; ?>">
-                    <?php _e('Updates', 'morden-security'); ?>
+                <a href="?page=morden-security-settings&tab=ip"
+                   class="nav-tab <?php echo $activeTab === 'ip' ? 'nav-tab-active' : ''; ?>">
+                    <?php _e('IP Management', 'morden-security'); ?>
+                </a>
+                <a href="?page=morden-security-settings&tab=countries"
+                   class="nav-tab <?php echo $activeTab === 'countries' ? 'nav-tab-active' : ''; ?>">
+                    <?php _e('Country Blocking', 'morden-security'); ?>
+                </a>
+                <a href="?page=morden-security-settings&tab=login"
+                   class="nav-tab <?php echo $activeTab === 'login' ? 'nav-tab-active' : ''; ?>">
+                    <?php _e('Login Protection', 'morden-security'); ?>
+                </a>
+                <a href="?page=morden-security-settings&tab=performance"
+                   class="nav-tab <?php echo $activeTab === 'performance' ? 'nav-tab-active' : ''; ?>">
+                    <?php _e('Performance', 'morden-security'); ?>
+                </a>
+                <a href="?page=morden-security-settings&tab=advanced"
+                   class="nav-tab <?php echo $activeTab === 'advanced' ? 'nav-tab-active' : ''; ?>">
+                    <?php _e('Advanced', 'morden-security'); ?>
                 </a>
             </nav>
 
-            <form method="post" action="" class="ms-settings-form">
-                <?php wp_nonce_field('ms_save_settings', 'ms_settings_nonce'); ?>
-
-                <div class="tab-content">
-                    <?php
-                    switch ($activeTab) {
-                        case 'general':
-                            $this->renderGeneralTab();
-                            break;
-                        case 'firewall':
-                            $this->renderFirewallTab();
-                            break;
-                        case 'bot-detection':
-                            $this->renderBotDetectionTab();
-                            break;
-                        case 'updates':
-                            $this->renderUpdatesTab();
-                            break;
-                    }
-                    ?>
-                </div>
-
-                <?php submit_button(); ?>
-            </form>
+            <div class="tab-content">
+                <?php
+                switch ($activeTab) {
+                    case 'general':
+                        $this->renderGeneralTab();
+                        break;
+                    case 'firewall':
+                        $this->renderFirewallTab();
+                        break;
+                    case 'bots':
+                        $this->renderBotsTab();
+                        break;
+                    case 'ip':
+                        $this->renderIPTab();
+                        break;
+                    case 'countries':
+                        $this->renderCountriesTab();
+                        break;
+                    case 'login':
+                        $this->renderLoginTab();
+                        break;
+                    case 'performance':
+                        $this->renderPerformanceTab();
+                        break;
+                    case 'advanced':
+                        $this->renderAdvancedTab();
+                        break;
+                }
+                ?>
+            </div>
         </div>
         <?php
+    }
+
+    public function initializeSettings(): void
+    {
+        register_setting('morden-security-general', 'ms_security_enabled');
+        register_setting('morden-security-general', 'ms_logging_enabled');
+        register_setting('morden-security-general', 'ms_log_retention_days');
+        register_setting('morden-security-general', 'ms_notification_email');
+
+        register_setting('morden-security-firewall', 'ms_firewall_enabled');
+        register_setting('morden-security-firewall', 'ms_waf_sensitivity');
+        register_setting('morden-security-firewall', 'ms_owasp_rules_enabled');
+        register_setting('morden-security-firewall', 'ms_custom_rules_enabled');
+
+        register_setting('morden-security-bots', 'ms_bot_detection_enabled');
+        register_setting('morden-security-bots', 'ms_bot_sensitivity');
+        register_setting('morden-security-bots', 'ms_good_bot_whitelist');
+        register_setting('morden-security-bots', 'ms_bot_challenge_threshold');
+        register_setting('morden-security-bots', 'ms_bot_block_threshold');
+
+        register_setting('morden-security-ip', 'ms_auto_ip_blocking');
+        register_setting('morden-security-ip', 'ms_default_block_duration');
+        register_setting('morden-security-ip', 'ms_threat_score_threshold');
+        register_setting('morden-security-ip', 'ms_escalation_enabled');
+        register_setting('morden-security-ip', 'ms_whitelist_admin_enabled');
+
+        register_setting('morden-security-countries', 'ms_country_blocking_enabled');
+        register_setting('morden-security-countries', 'ms_blocked_countries');
+        register_setting('morden-security-countries', 'ms_allowed_countries');
+        register_setting('morden-security-countries', 'ms_country_detection_method');
+
+        register_setting('morden-security-login', 'ms_login_protection_enabled');
+        register_setting('morden-security-login', 'ms_max_login_attempts');
+        register_setting('morden-security-login', 'ms_lockout_duration');
+        register_setting('morden-security-login', 'ms_strong_password_required');
+        register_setting('morden-security-login', 'ms_captcha_enabled');
+
+        register_setting('morden-security-performance', 'ms_cache_enabled');
+        register_setting('morden-security-performance', 'ms_cache_duration');
+        register_setting('morden-security-performance', 'ms_database_optimization');
+
+        register_setting('morden-security-advanced', 'ms_debug_mode');
+        register_setting('morden-security-advanced', 'ms_maintenance_mode');
+        register_setting('morden-security-advanced', 'ms_webhook_enabled');
+        register_setting('morden-security-advanced', 'ms_api_access_enabled');
     }
 
     private function renderGeneralTab(): void
     {
         ?>
-        <table class="form-table">
-            <tr>
-                <th scope="row">
-                    <label for="ms_logging_enabled"><?php _e('Enable Logging', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="ms_logging_enabled" name="ms_logging_enabled" value="1"
-                           <?php checked(get_option('ms_logging_enabled', true)); ?>>
-                    <p class="description">
-                        <?php _e('Log all security events to database for analysis.', 'morden-security'); ?>
-                    </p>
-                </td>
-            </tr>
-
-            <tr>
-                <th scope="row">
-                    <label for="ms_auto_blocking_enabled"><?php _e('Auto IP Blocking', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="ms_auto_blocking_enabled" name="ms_auto_blocking_enabled" value="1"
-                           <?php checked(get_option('ms_auto_blocking_enabled', true)); ?>>
-                    <p class="description">
-                        <?php _e('Automatically block IPs based on threat score.', 'morden-security'); ?>
-                    </p>
-                </td>
-            </tr>
-
-            <tr>
-                <th scope="row">
-                    <label for="ms_temp_block_duration"><?php _e('Temporary Block Duration', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <select id="ms_temp_block_duration" name="ms_temp_block_duration">
-                        <option value="3600" <?php selected(get_option('ms_temp_block_duration', 3600), 3600); ?>>
-                            <?php _e('1 Hour', 'morden-security'); ?>
-                        </option>
-                        <option value="7200" <?php selected(get_option('ms_temp_block_duration', 3600), 7200); ?>>
-                            <?php _e('2 Hours', 'morden-security'); ?>
-                        </option>
-                        <option value="21600" <?php selected(get_option('ms_temp_block_duration', 3600), 21600); ?>>
-                            <?php _e('6 Hours', 'morden-security'); ?>
-                        </option>
-                        <option value="86400" <?php selected(get_option('ms_temp_block_duration', 3600), 86400); ?>>
-                            <?php _e('24 Hours', 'morden-security'); ?>
-                        </option>
-                    </select>
-                </td>
-            </tr>
-
-            <tr>
-                <th scope="row">
-                    <label for="ms_perm_block_threshold"><?php _e('Permanent Block Threshold', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="number" id="ms_perm_block_threshold" name="ms_perm_block_threshold"
-                           value="<?php echo esc_attr(get_option('ms_perm_block_threshold', 5)); ?>" min="1" max="20">
-                    <p class="description">
-                        <?php _e('Number of violations before permanent block.', 'morden-security'); ?>
-                    </p>
-                </td>
-            </tr>
-        </table>
+        <form method="post" action="options.php">
+            <?php settings_fields('morden-security-general'); ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php _e('Enable Security Protection', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_security_enabled" value="1"
+                               <?php checked(get_option('ms_security_enabled', true)); ?> />
+                        <p class="description"><?php _e('Master switch for all security features', 'morden-security'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Enable Security Logging', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_logging_enabled" value="1"
+                               <?php checked(get_option('ms_logging_enabled', true)); ?> />
+                        <p class="description"><?php _e('Log all security events to database', 'morden-security'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Log Retention (Days)', 'morden-security'); ?></th>
+                    <td>
+                        <input type="number" name="ms_log_retention_days" min="1" max="365"
+                               value="<?php echo esc_attr(get_option('ms_log_retention_days', 30)); ?>" />
+                        <p class="description"><?php _e('Number of days to keep security logs', 'morden-security'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Notification Email', 'morden-security'); ?></th>
+                    <td>
+                        <input type="email" name="ms_notification_email"
+                               value="<?php echo esc_attr(get_option('ms_notification_email', get_option('admin_email'))); ?>" />
+                        <p class="description"><?php _e('Email address for security alerts', 'morden-security'); ?></p>
+                    </td>
+                </tr>
+            </table>
+            <?php submit_button(); ?>
+        </form>
         <?php
     }
 
     private function renderFirewallTab(): void
     {
         ?>
-        <table class="form-table">
-            <tr>
-                <th scope="row">
-                    <label for="ms_firewall_enabled"><?php _e('Enable Firewall', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="ms_firewall_enabled" name="ms_firewall_enabled" value="1"
-                           <?php checked(get_option('ms_firewall_enabled', true)); ?>>
-                    <p class="description">
-                        <?php _e('Enable web application firewall protection.', 'morden-security'); ?>
-                    </p>
-                </td>
-            </tr>
-
-            <tr>
-                <th scope="row">
-                    <label for="ms_sql_injection_protection"><?php _e('SQL Injection Protection', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="ms_sql_injection_protection" name="ms_sql_injection_protection" value="1"
-                           <?php checked(get_option('ms_sql_injection_protection', true)); ?>>
-                </td>
-            </tr>
-
-            <tr>
-                <th scope="row">
-                    <label for="ms_xss_protection"><?php _e('XSS Protection', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="ms_xss_protection" name="ms_xss_protection" value="1"
-                           <?php checked(get_option('ms_xss_protection', true)); ?>>
-                </td>
-            </tr>
-
-            <tr>
-                <th scope="row">
-                    <label for="ms_lfi_protection"><?php _e('Local File Inclusion Protection', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="ms_lfi_protection" name="ms_lfi_protection" value="1"
-                           <?php checked(get_option('ms_lfi_protection', true)); ?>>
-                </td>
-            </tr>
-
-            <tr>
-                <th scope="row">
-                    <label for="ms_rfi_protection"><?php _e('Remote File Inclusion Protection', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="ms_rfi_protection" name="ms_rfi_protection" value="1"
-                           <?php checked(get_option('ms_rfi_protection', true)); ?>>
-                </td>
-            </tr>
-        </table>
+        <form method="post" action="options.php">
+            <?php settings_fields('morden-security-firewall'); ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php _e('Enable Web Application Firewall', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_firewall_enabled" value="1"
+                               <?php checked(get_option('ms_firewall_enabled', true)); ?> />
+                        <p class="description"><?php _e('Enable WAF protection against common attacks', 'morden-security'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('WAF Sensitivity Level', 'morden-security'); ?></th>
+                    <td>
+                        <select name="ms_waf_sensitivity">
+                            <option value="low" <?php selected(get_option('ms_waf_sensitivity', 'medium'), 'low'); ?>>
+                                <?php _e('Low (Permissive)', 'morden-security'); ?>
+                            </option>
+                            <option value="medium" <?php selected(get_option('ms_waf_sensitivity', 'medium'), 'medium'); ?>>
+                                <?php _e('Medium (Balanced)', 'morden-security'); ?>
+                            </option>
+                            <option value="high" <?php selected(get_option('ms_waf_sensitivity', 'medium'), 'high'); ?>>
+                                <?php _e('High (Strict)', 'morden-security'); ?>
+                            </option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Enable OWASP Core Rules', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_owasp_rules_enabled" value="1"
+                               <?php checked(get_option('ms_owasp_rules_enabled', true)); ?> />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Enable Custom Rules', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_custom_rules_enabled" value="1"
+                               <?php checked(get_option('ms_custom_rules_enabled', true)); ?> />
+                    </td>
+                </tr>
+            </table>
+            <?php submit_button(); ?>
+        </form>
         <?php
     }
 
-    private function renderBotDetectionTab(): void
+    private function renderBotsTab(): void
     {
         ?>
-        <table class="form-table">
-            <tr>
-                <th scope="row">
-                    <label for="ms_bot_detection_enabled"><?php _e('Enable Bot Detection', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="ms_bot_detection_enabled" name="ms_bot_detection_enabled" value="1"
-                           <?php checked(get_option('ms_bot_detection_enabled', true)); ?>>
-                    <p class="description">
-                        <?php _e('Detect and block malicious bots.', 'morden-security'); ?>
-                    </p>
-                </td>
-            </tr>
-
-            <tr>
-                <th scope="row">
-                    <label for="ms_bot_challenge_threshold"><?php _e('Challenge Threshold', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="number" id="ms_bot_challenge_threshold" name="ms_bot_challenge_threshold"
-                           value="<?php echo esc_attr(get_option('ms_bot_challenge_threshold', 70)); ?>" min="1" max="100">
-                    <p class="description">
-                        <?php _e('Confidence level to challenge suspicious bots (1-100).', 'morden-security'); ?>
-                    </p>
-                </td>
-            </tr>
-
-            <tr>
-                <th scope="row">
-                    <label for="ms_bot_block_threshold"><?php _e('Block Threshold', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="number" id="ms_bot_block_threshold" name="ms_bot_block_threshold"
-                           value="<?php echo esc_attr(get_option('ms_bot_block_threshold', 90)); ?>" min="1" max="100">
-                    <p class="description">
-                        <?php _e('Confidence level to block malicious bots (1-100).', 'morden-security'); ?>
-                    </p>
-                </td>
-            </tr>
-
-            <tr>
-                <th scope="row">
-                    <label for="ms_aggressive_bot_detection"><?php _e('Aggressive Detection', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="ms_aggressive_bot_detection" name="ms_aggressive_bot_detection" value="1"
-                           <?php checked(get_option('ms_aggressive_bot_detection', false)); ?>>
-                    <p class="description">
-                        <?php _e('Enable more aggressive bot detection (may cause false positives).', 'morden-security'); ?>
-                    </p>
-                </td>
-            </tr>
-        </table>
+        <form method="post" action="options.php">
+            <?php settings_fields('morden-security-bots'); ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php _e('Enable Bot Detection', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_bot_detection_enabled" value="1"
+                               <?php checked(get_option('ms_bot_detection_enabled', true)); ?> />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Bot Detection Sensitivity', 'morden-security'); ?></th>
+                    <td>
+                        <select name="ms_bot_sensitivity">
+                            <option value="low" <?php selected(get_option('ms_bot_sensitivity', 'medium'), 'low'); ?>>
+                                <?php _e('Low', 'morden-security'); ?>
+                            </option>
+                            <option value="medium" <?php selected(get_option('ms_bot_sensitivity', 'medium'), 'medium'); ?>>
+                                <?php _e('Medium', 'morden-security'); ?>
+                            </option>
+                            <option value="high" <?php selected(get_option('ms_bot_sensitivity', 'medium'), 'high'); ?>>
+                                <?php _e('High', 'morden-security'); ?>
+                            </option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Whitelist Good Bots', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_good_bot_whitelist" value="1"
+                               <?php checked(get_option('ms_good_bot_whitelist', true)); ?> />
+                        <p class="description"><?php _e('Allow search engine and legitimate bots', 'morden-security'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Bot Challenge Threshold', 'morden-security'); ?></th>
+                    <td>
+                        <input type="number" name="ms_bot_challenge_threshold" min="1" max="100"
+                               value="<?php echo esc_attr(get_option('ms_bot_challenge_threshold', 70)); ?>" />
+                        <p class="description"><?php _e('Bot score threshold for challenge (1-100)', 'morden-security'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Bot Block Threshold', 'morden-security'); ?></th>
+                    <td>
+                        <input type="number" name="ms_bot_block_threshold" min="1" max="100"
+                               value="<?php echo esc_attr(get_option('ms_bot_block_threshold', 90)); ?>" />
+                        <p class="description"><?php _e('Bot score threshold for blocking (1-100)', 'morden-security'); ?></p>
+                    </td>
+                </tr>
+            </table>
+            <?php submit_button(); ?>
+        </form>
         <?php
     }
 
-    private function renderUpdatesTab(): void
+    private function renderIPTab(): void
     {
         ?>
-        <table class="form-table">
-            <tr>
-                <th scope="row">
-                    <label for="ms_github_updates_enabled"><?php _e('Enable GitHub Updates', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="ms_github_updates_enabled" name="ms_github_updates_enabled" value="1"
-                           <?php checked(get_option('ms_github_updates_enabled', true)); ?>>
-                    <p class="description">
-                        <?php _e('Check for updates from GitHub repository.', 'morden-security'); ?>
-                    </p>
-                </td>
-            </tr>
-
-            <tr>
-                <th scope="row">
-                    <label for="ms_auto_updates_enabled"><?php _e('Auto Updates', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="checkbox" id="ms_auto_updates_enabled" name="ms_auto_updates_enabled" value="1"
-                           <?php checked(get_option('ms_auto_updates_enabled', false)); ?>>
-                    <p class="description">
-                        <?php _e('Automatically install updates when available.', 'morden-security'); ?>
-                    </p>
-                </td>
-            </tr>
-
-            <tr>
-                <th scope="row">
-                    <label for="ms_github_token"><?php _e('GitHub Token', 'morden-security'); ?></label>
-                </th>
-                <td>
-                    <input type="password" id="ms_github_token" name="ms_github_token" class="regular-text"
-                           value="<?php echo esc_attr(get_option('ms_github_token', '')); ?>">
-                    <p class="description">
-                        <?php _e('Optional: GitHub personal access token for private repositories.', 'morden-security'); ?>
-                    </p>
-                </td>
-            </tr>
-        </table>
+        <form method="post" action="options.php">
+            <?php settings_fields('morden-security-ip'); ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php _e('Enable Auto IP Blocking', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_auto_ip_blocking" value="1"
+                               <?php checked(get_option('ms_auto_ip_blocking', true)); ?> />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Default Block Duration', 'morden-security'); ?></th>
+                    <td>
+                        <select name="ms_default_block_duration">
+                            <option value="3600" <?php selected(get_option('ms_default_block_duration', '3600'), '3600'); ?>>
+                                <?php _e('1 Hour', 'morden-security'); ?>
+                            </option>
+                            <option value="21600" <?php selected(get_option('ms_default_block_duration', '3600'), '21600'); ?>>
+                                <?php _e('6 Hours', 'morden-security'); ?>
+                            </option>
+                            <option value="86400" <?php selected(get_option('ms_default_block_duration', '3600'), '86400'); ?>>
+                                <?php _e('24 Hours', 'morden-security'); ?>
+                            </option>
+                            <option value="permanent" <?php selected(get_option('ms_default_block_duration', '3600'), 'permanent'); ?>>
+                                <?php _e('Permanent', 'morden-security'); ?>
+                            </option>
+                        </select>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Threat Score Threshold', 'morden-security'); ?></th>
+                    <td>
+                        <input type="number" name="ms_threat_score_threshold" min="1" max="100"
+                               value="<?php echo esc_attr(get_option('ms_threat_score_threshold', 50)); ?>" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Enable Escalation', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_escalation_enabled" value="1"
+                               <?php checked(get_option('ms_escalation_enabled', true)); ?> />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Auto-Whitelist Admins', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_whitelist_admin_enabled" value="1"
+                               <?php checked(get_option('ms_whitelist_admin_enabled', true)); ?> />
+                    </td>
+                </tr>
+            </table>
+            <?php submit_button(); ?>
+        </form>
         <?php
     }
 
-    private function getDefaultSettings(): array
+    private function renderCountriesTab(): void
     {
-        return [
-            'ms_logging_enabled' => true,
-            'ms_firewall_enabled' => true,
-            'ms_auto_blocking_enabled' => true,
-            'ms_bot_detection_enabled' => true,
-            'ms_sql_injection_protection' => true,
-            'ms_xss_protection' => true,
-            'ms_lfi_protection' => true,
-            'ms_rfi_protection' => true,
-            'ms_temp_block_duration' => 3600,
-            'ms_perm_block_threshold' => 5,
-            'ms_bot_challenge_threshold' => 70,
-            'ms_bot_block_threshold' => 90,
-            'ms_github_updates_enabled' => true
-        ];
+        ?>
+        <form method="post" action="options.php">
+            <?php settings_fields('morden-security-countries'); ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php _e('Enable Country Blocking', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_country_blocking_enabled" value="1"
+                               <?php checked(get_option('ms_country_blocking_enabled', false)); ?> />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Blocked Countries', 'morden-security'); ?></th>
+                    <td>
+                        <textarea name="ms_blocked_countries" rows="5" cols="50" placeholder="CN&#10;RU&#10;IR"><?php
+                            $blockedCountries = get_option('ms_blocked_countries', []);
+                            if (is_array($blockedCountries)) {
+                                $blockedCountries = implode("\n", $blockedCountries);
+                            }
+                            echo esc_textarea($blockedCountries);
+                        ?></textarea>
+                        <p class="description"><?php _e('Enter country codes, one per line (e.g., CN, RU)', 'morden-security'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Country Detection Method', 'morden-security'); ?></th>
+                    <td>
+                        <select name="ms_country_detection_method">
+                            <option value="headers" <?php selected(get_option('ms_country_detection_method', 'headers'), 'headers'); ?>>
+                                <?php _e('Server Headers', 'morden-security'); ?>
+                            </option>
+                            <option value="ip_lookup" <?php selected(get_option('ms_country_detection_method', 'headers'), 'ip_lookup'); ?>>
+                                <?php _e('IP Lookup', 'morden-security'); ?>
+                            </option>
+                        </select>
+                    </td>
+                </tr>
+            </table>
+            <?php submit_button(); ?>
+        </form>
+        <?php
+    }
+
+    private function renderLoginTab(): void
+    {
+        ?>
+        <form method="post" action="options.php">
+            <?php settings_fields('morden-security-login'); ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php _e('Enable Login Protection', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_login_protection_enabled" value="1"
+                               <?php checked(get_option('ms_login_protection_enabled', true)); ?> />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Max Login Attempts', 'morden-security'); ?></th>
+                    <td>
+                        <input type="number" name="ms_max_login_attempts" min="1" max="20"
+                               value="<?php echo esc_attr(get_option('ms_max_login_attempts', 5)); ?>" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Lockout Duration (minutes)', 'morden-security'); ?></th>
+                    <td>
+                        <input type="number" name="ms_lockout_duration" min="1" max="1440"
+                               value="<?php echo esc_attr(get_option('ms_lockout_duration', 30)); ?>" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Require Strong Passwords', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_strong_password_required" value="1"
+                               <?php checked(get_option('ms_strong_password_required', false)); ?> />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Enable CAPTCHA', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_captcha_enabled" value="1"
+                               <?php checked(get_option('ms_captcha_enabled', false)); ?> />
+                    </td>
+                </tr>
+            </table>
+            <?php submit_button(); ?>
+        </form>
+        <?php
+    }
+
+    private function renderPerformanceTab(): void
+    {
+        ?>
+        <form method="post" action="options.php">
+            <?php settings_fields('morden-security-performance'); ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php _e('Enable Security Cache', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_cache_enabled" value="1"
+                               <?php checked(get_option('ms_cache_enabled', true)); ?> />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Cache Duration (minutes)', 'morden-security'); ?></th>
+                    <td>
+                        <input type="number" name="ms_cache_duration" min="1" max="1440"
+                               value="<?php echo esc_attr(get_option('ms_cache_duration', 15)); ?>" />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Database Optimization', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_database_optimization" value="1"
+                               <?php checked(get_option('ms_database_optimization', true)); ?> />
+                    </td>
+                </tr>
+            </table>
+            <?php submit_button(); ?>
+        </form>
+        <?php
+    }
+
+    private function renderAdvancedTab(): void
+    {
+        ?>
+        <form method="post" action="options.php">
+            <?php settings_fields('morden-security-advanced'); ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php _e('Debug Mode', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_debug_mode" value="1"
+                               <?php checked(get_option('ms_debug_mode', false)); ?> />
+                        <p class="description"><?php _e('Enable detailed logging for debugging', 'morden-security'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Maintenance Mode', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_maintenance_mode" value="1"
+                               <?php checked(get_option('ms_maintenance_mode', false)); ?> />
+                        <p class="description"><?php _e('Block all non-admin access', 'morden-security'); ?></p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Enable Webhook Notifications', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_webhook_enabled" value="1"
+                               <?php checked(get_option('ms_webhook_enabled', false)); ?> />
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php _e('Enable API Access', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_api_access_enabled" value="1"
+                               <?php checked(get_option('ms_api_access_enabled', false)); ?> />
+                    </td>
+                </tr>
+            </table>
+            <?php submit_button(); ?>
+        </form>
+        <?php
     }
 }

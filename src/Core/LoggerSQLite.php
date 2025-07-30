@@ -268,6 +268,36 @@ class LoggerSQLite
         }
     }
 
+    public function getCountryStats(int $limit = 20): array
+    {
+        try {
+            $stmt = $this->database->prepare('
+                SELECT
+                    country_code,
+                    COUNT(*) as total_requests,
+                    SUM(CASE WHEN action_taken LIKE "%blocked%" THEN 1 ELSE 0 END) as blocked_requests,
+                    SUM(threat_score) as total_threat_score
+                FROM ' . $this->tableName . '
+                WHERE country_code IS NOT NULL AND country_code != "" AND country_code != "None"
+                GROUP BY country_code
+                ORDER BY total_requests DESC
+                LIMIT ?
+            ');
+            if (!$stmt) return [];
+            $stmt->bindValue(1, $limit, SQLITE3_INTEGER);
+            $result = $stmt->execute();
+            $stats = [];
+            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+                $stats[$row['country_code']] = $row;
+            }
+            $stmt->close();
+            return $stats;
+        } catch (Exception $e) {
+            error_log('MS Logger Error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
     public function cleanupOldLogs(int $daysToKeep = 30): int
     {
         try {
@@ -307,7 +337,7 @@ class LoggerSQLite
         $this->database->exec('PRAGMA temp_store = memory');
     }
 
-    private function createTables(): void
+    public function createTables(): void
     {
         $this->createSecurityEventsTable();
         $this->createIPRulesTable();
@@ -384,4 +414,35 @@ class LoggerSQLite
             $this->database->close();
         }
     }
+    public function getEventsByIP(string $ipAddress, int $limit = 50): array {
+    try {
+        $stmt = $this->database->prepare('
+            SELECT * FROM ' . $this->tableName . '
+            WHERE ip_address = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+        ');
+
+        if (!$stmt) {
+            return [];
+        }
+
+        $stmt->bindValue(1, $ipAddress, SQLITE3_TEXT);
+        $stmt->bindValue(2, $limit, SQLITE3_INTEGER);
+
+        $result = $stmt->execute();
+        $events = [];
+
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            $events[] = $row;
+        }
+
+        $stmt->close();
+        return $events;
+
+    } catch (Exception $e) {
+        error_log('MS Logger Error in getEventsByIP: ' . $e->getMessage());
+        return [];
+    }
+}
 }

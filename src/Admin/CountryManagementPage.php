@@ -40,10 +40,6 @@ class CountryManagementPage
                    class="nav-tab <?php echo $activeTab === 'blocked' ? 'nav-tab-active' : ''; ?>">
                     <?php _e('Blocked Countries', 'morden-security'); ?>
                 </a>
-                <a href="?page=morden-security-countries&tab=settings"
-                   class="nav-tab <?php echo $activeTab === 'settings' ? 'nav-tab-active' : ''; ?>">
-                    <?php _e('Settings', 'morden-security'); ?>
-                </a>
             </nav>
 
             <div class="tab-content">
@@ -54,9 +50,6 @@ class CountryManagementPage
                         break;
                     case 'blocked':
                         $this->renderBlockedCountriesTab($blockedCountries, $highRiskCountries);
-                        break;
-                    case 'settings':
-                        $this->renderSettingsTab();
                         break;
                 }
                 ?>
@@ -251,67 +244,6 @@ class CountryManagementPage
                     <?php endforeach; ?>
                 </div>
             </div>
-        </div>
-        <?php
-    }
-
-    private function renderSettingsTab(): void
-    {
-        ?>
-        <div class="ms-country-settings">
-            <form method="post" action="options.php">
-                <?php settings_fields('ms_country_settings'); ?>
-
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">
-                            <label for="ms_country_blocking_enabled"><?php _e('Enable Country Blocking', 'morden-security'); ?></label>
-                        </th>
-                        <td>
-                            <input type="checkbox" id="ms_country_blocking_enabled"
-                                   name="ms_country_blocking_enabled" value="1"
-                                   <?php checked(get_option('ms_country_blocking_enabled', false)); ?>>
-                            <p class="description">
-                                <?php _e('Enable geographic blocking based on country codes.', 'morden-security'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="ms_country_block_mode"><?php _e('Block Mode', 'morden-security'); ?></label>
-                        </th>
-                        <td>
-                            <select id="ms_country_block_mode" name="ms_country_block_mode">
-                                <option value="blacklist" <?php selected(get_option('ms_country_block_mode', 'blacklist'), 'blacklist'); ?>>
-                                    <?php _e('Blacklist (Block selected countries)', 'morden-security'); ?>
-                                </option>
-                                <option value="whitelist" <?php selected(get_option('ms_country_block_mode', 'blacklist'), 'whitelist'); ?>>
-                                    <?php _e('Whitelist (Allow only selected countries)', 'morden-security'); ?>
-                                </option>
-                            </select>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <th scope="row">
-                            <label for="ms_geo_detection_service"><?php _e('Geo Detection Service', 'morden-security'); ?></label>
-                        </th>
-                        <td>
-                            <select id="ms_geo_detection_service" name="ms_geo_detection_service">
-                                <option value="headers" <?php selected(get_option('ms_geo_detection_service', 'headers'), 'headers'); ?>>
-                                    <?php _e('HTTP Headers (CloudFlare, etc.)', 'morden-security'); ?>
-                                </option>
-                                <option value="maxmind" <?php selected(get_option('ms_geo_detection_service', 'headers'), 'maxmind'); ?>>
-                                    <?php _e('MaxMind GeoIP2', 'morden-security'); ?>
-                                </option>
-                            </select>
-                        </td>
-                    </tr>
-                </table>
-
-                <?php submit_button(); ?>
-            </form>
         </div>
         <?php
     }
