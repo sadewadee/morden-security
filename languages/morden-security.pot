@@ -1,0 +1,321 @@
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: Morden Security 1.0.0\n"
+"Report-Msgid-Bugs-To: https://github.com/sadewadee/morden-security/issues\n"
+"POT-Creation-Date: 2024-01-01 12:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: morden-security.php:89
+msgid "Insufficient permissions"
+msgstr ""
+
+#: morden-security.php:123
+msgid "Morden Security requires PHP 7.4+, WordPress 5.0+, and SQLite3 extension to function properly."
+msgstr ""
+
+#: src/Admin/AdminController.php:45
+msgid "Morden Security"
+msgstr ""
+
+#: src/Admin/AdminController.php:52
+msgid "Dashboard"
+msgstr ""
+
+#: src/Admin/AdminController.php:60
+msgid "IP Management"
+msgstr ""
+
+#: src/Admin/AdminController.php:68
+msgid "Bot Detection"
+msgstr ""
+
+#: src/Admin/AdminController.php:76
+msgid "Settings"
+msgstr ""
+
+#: src/Admin/Dashboard.php:45
+msgid "Morden Security Dashboard"
+msgstr ""
+
+#: src/Admin/Dashboard.php:70
+msgid "Blocked Requests"
+msgstr ""
+
+#: src/Admin/Dashboard.php:75
+msgid "Bot Detections"
+msgstr ""
+
+#: src/Admin/Dashboard.php:80
+msgid "Firewall Blocks"
+msgstr ""
+
+#: src/Admin/Dashboard.php:85
+msgid "Total Events"
+msgstr ""
+
+#: src/Admin/Dashboard.php:95
+msgid "Current Threat Level"
+msgstr ""
+
+#: src/Admin/Dashboard.php:109
+msgid "Recent Security Events"
+msgstr ""
+
+#: src/Admin/Dashboard.php:115
+msgid "Time"
+msgstr ""
+
+#: src/Admin/Dashboard.php:116
+msgid "Event Type"
+msgstr ""
+
+#: src/Admin/Dashboard.php:117
+msgid "IP Address"
+msgstr ""
+
+#: src/Admin/Dashboard.php:118
+msgid "Severity"
+msgstr ""
+
+#: src/Admin/Dashboard.php:119
+msgid "Message"
+msgstr ""
+
+#: src/Admin/Dashboard.php:120
+msgid "Action"
+msgstr ""
+
+#: src/Admin/Dashboard.php:142
+msgid "Block IP"
+msgstr ""
+
+#: src/Admin/Dashboard.php:150
+msgid "Top Threat Sources"
+msgstr ""
+
+#: src/Admin/Dashboard.php:156
+msgid "Threat Count"
+msgstr ""
+
+#: src/Admin/Dashboard.php:157
+msgid "Last Seen"
+msgstr ""
+
+#: src/Admin/Dashboard.php:158
+msgid "Actions"
+msgstr ""
+
+#: src/Admin/Dashboard.php:169
+msgid "Block"
+msgstr ""
+
+#: src/Admin/Dashboard.php:174
+msgid "Details"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:32
+msgid "Blocked IPs"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:37
+msgid "Whitelist"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:42
+msgid "Add Rule"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:65
+msgid "Unblock Selected"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:80
+msgid "Country"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:81
+msgid "Block Type"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:82
+msgid "Reason"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:83
+msgid "Blocked Until"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:84
+msgid "Threat Score"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:108
+msgid "Permanent"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:113
+msgid "Unknown"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:123
+msgid "Unblock"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:128
+msgid "View Logs"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:145
+msgid "Added By"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:146
+msgid "Added Date"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:147
+msgid "Notes"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:156
+msgid "System"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:162
+msgid "Remove"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:179
+msgid "Rule Type"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:183
+msgid "Block (Blacklist)"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:184
+msgid "Allow (Whitelist)"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:190
+msgid "Duration"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:194
+msgid "Temporary"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:210
+msgid "Reason for this rule"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:218
+msgid "Optional additional notes"
+msgstr ""
+
+#: src/Admin/IPManagementPage.php:224
+msgid "Add IP Rule"
+msgstr ""
+
+#: src/Admin/Settings.php:34
+msgid "Morden Security Settings"
+msgstr ""
+
+#: src/Admin/Settings.php:38
+msgid "General"
+msgstr ""
+
+#: src/Admin/Settings.php:43
+msgid "Firewall"
+msgstr ""
+
+#: src/Admin/Settings.php:48
+msgid "Bot Detection"
+msgstr ""
+
+#: src/Admin/Settings.php:53
+msgid "Updates"
+msgstr ""
+
+#: src/Admin/Settings.php:76
+msgid "Enable Logging"
+msgstr ""
+
+#: src/Admin/Settings.php:82
+msgid "Log all security events to database for analysis."
+msgstr ""
+
+#: src/Admin/Settings.php:88
+msgid "Auto IP Blocking"
+msgstr ""
+
+#: src/Admin/Settings.php:94
+msgid "Automatically block IPs based on threat score."
+msgstr ""
+
+#: src/Admin/Settings.php:100
+msgid "Temporary Block Duration"
+msgstr ""
+
+#: src/Admin/Settings.php:104
+msgid "1 Hour"
+msgstr ""
+
+#: src/Admin/Settings.php:107
+msgid "2 Hours"
+msgstr ""
+
+#: src/Admin/Settings.php:110
+msgid "6 Hours"
+msgstr ""
+
+#: src/Admin/Settings.php:113
+msgid "24 Hours"
+msgstr ""
+
+#: src/Admin/Settings.php:120
+msgid "Permanent Block Threshold"
+msgstr ""
+
+#: src/Admin/Settings.php:126
+msgid "Number of violations before permanent block."
+msgstr ""
+
+#: src/Modules/Login/LoginProtection.php:189
+msgid "Too many failed login attempts. Please try again in %d minutes."
+msgstr ""
+
+#: src/Modules/Login/LoginProtection.php:193
+msgid "Login temporarily blocked due to suspicious activity."
+msgstr ""
+
+#: src/Modules/Login/CaptchaManager.php:67
+msgid "Security Question"
+msgstr ""
+
+#: src/Modules/Login/CaptchaManager.php:76
+msgid "Answer"
+msgstr ""
+
+#: src/Modules/Login/CaptchaManager.php:78
+msgid "Please solve the math problem to continue"
+msgstr ""
+
+#: src/Modules/AntiSpam/CommentAntiSpam.php:46
+msgid "Your comment was flagged as spam."
+msgstr ""
+
+#: src/Modules/AntiSpam/CommentAntiSpam.php:52
+msgid "Too many spam attempts from your IP."
+msgstr ""

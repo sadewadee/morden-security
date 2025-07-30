@@ -2,6 +2,8 @@
 
 namespace MordenSecurity\Modules\WAF;
 
+use MordenSecurity\Modules\WAF\RulesetManager;
+
 if (!defined('ABSPATH')) {
     exit;
 }

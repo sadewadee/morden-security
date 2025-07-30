@@ -1,0 +1,73 @@
+{
+  "metadata": {
+    "name": "High Risk Countries Database",
+    "version": "1.0.0",
+    "description": "Countries with higher security risk profiles",
+    "last_updated": "2024-01-01",
+    "sources": ["threat_intelligence", "security_reports"]
+  },
+  "high_risk_countries": [
+    {
+      "code": "CN",
+      "name": "China",
+      "risk_level": "high",
+      "risk_factors": ["state_sponsored_attacks", "high_bot_activity", "censorship"],
+      "threat_score": 85
+    },
+    {
+      "code": "RU",
+      "name": "Russia",
+      "risk_level": "high",
+      "risk_factors": ["cybercrime_hub", "state_sponsored_attacks", "ransomware"],
+      "threat_score": 90
+    },
+    {
+      "code": "KP",
+      "name": "North Korea",
+      "risk_level": "critical",
+      "risk_factors": ["state_sponsored_attacks", "financial_crimes", "sanctions_evasion"],
+      "threat_score": 95
+    },
+    {
+      "code": "IR",
+      "name": "Iran",
+      "risk_level": "high",
+      "risk_factors": ["state_sponsored_attacks", "regional_conflicts", "sanctions"],
+      "threat_score": 80
+    },
+    {
+      "code": "PK",
+      "name": "Pakistan",
+      "risk_level": "medium",
+      "risk_factors": ["cybercrime", "weak_governance", "extremism"],
+      "threat_score": 65
+    },
+    {
+      "code": "BD",
+      "name": "Bangladesh",
+      "risk_level": "medium",
+      "risk_factors": ["cybercrime", "weak_cyber_laws", "bot_farms"],
+      "threat_score": 60
+    },
+    {
+      "code": "VN",
+      "name": "Vietnam",
+      "risk_level": "medium",
+      "risk_factors": ["cybercrime", "click_farms", "fake_traffic"],
+      "threat_score": 55
+    },
+    {
+      "code": "UA",
+      "name": "Ukraine",
+      "risk_level": "medium",
+      "risk_factors": ["active_conflict", "cybercrime", "instability"],
+      "threat_score": 70
+    }
+  ],
+  "risk_scoring": {
+    "critical": {"min": 90, "max": 100},
+    "high": {"min": 75, "max": 89},
+    "medium": {"min": 50, "max": 74},
+    "low": {"min": 0, "max": 49}
+  }
+}

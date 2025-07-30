@@ -1,0 +1,50 @@
+{
+  "metadata": {
+    "name": "Social Media Crawlers",
+    "version": "1.0.0",
+    "description": "Social media platform crawlers and bots",
+    "last_updated": "2024-01-01"
+  },
+  "social_crawlers": [
+    {
+      "name": "Facebook External Hit",
+      "patterns": ["facebookexternalhit", "facebook"],
+      "category": "social_media",
+      "trust_level": "high",
+      "verification_dns": "facebook.com",
+      "rate_limit": 15
+    },
+    {
+      "name": "Twitter Bot",
+      "patterns": ["twitterbot", "twitter"],
+      "category": "social_media",
+      "trust_level": "high",
+      "verification_dns": "twitter.com",
+      "rate_limit": 10
+    },
+    {
+      "name": "LinkedIn Bot",
+      "patterns": ["linkedinbot", "linkedin"],
+      "category": "social_media",
+      "trust_level": "high",
+      "verification_dns": "linkedin.com",
+      "rate_limit": 8
+    },
+    {
+      "name": "Pinterest Bot",
+      "patterns": ["pinterestbot", "pinterest"],
+      "category": "social_media",
+      "trust_level": "medium",
+      "verification_dns": "pinterest.com",
+      "rate_limit": 5
+    },
+    {
+      "name": "Telegram Bot",
+      "patterns": ["telegrambot", "telegram"],
+      "category": "messaging",
+      "trust_level": "medium",
+      "verification_dns": "telegram.org",
+      "rate_limit": 3
+    }
+  ]
+}

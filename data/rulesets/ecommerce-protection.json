@@ -1,0 +1,120 @@
+{
+  "metadata": {
+    "name": "E-commerce Protection Rules",
+    "version": "1.0.0",
+    "description": "Security rules specifically designed for e-commerce websites",
+    "last_updated": "2024-01-01"
+  },
+  "rules": [
+    {
+      "id": "EC_001",
+      "name": "Credit Card Pattern Detection",
+      "pattern": "\\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3[0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\\b",
+      "flags": "i",
+      "severity": 8,
+      "action": "monitor",
+      "message": "Credit card pattern detected in request",
+      "enabled": true,
+      "category": "financial_data"
+    },
+    {
+      "id": "EC_002",
+      "name": "CVV Pattern Detection",
+      "pattern": "\\b[0-9]{3,4}\\b.*(?:cvv|cvc|security|code)",
+      "flags": "i",
+      "severity": 7,
+      "action": "monitor",
+      "message": "CVV security code pattern detected",
+      "enabled": true,
+      "category": "financial_data"
+    },
+    {
+      "id": "EC_003",
+      "name": "Shopping Cart Manipulation",
+      "pattern": "(add_to_cart|remove_from_cart|update_cart).*price\\s*=\\s*[0-9]",
+      "flags": "i",
+      "severity": 9,
+      "action": "block",
+      "message": "Attempt to manipulate shopping cart prices",
+      "enabled": true,
+      "category": "price_manipulation"
+    },
+    {
+      "id": "EC_004",
+      "name": "Payment Gateway Bypass",
+      "pattern": "(payment_complete|order_complete|success).*bypass",
+      "flags": "i",
+      "severity": 10,
+      "action": "block",
+      "message": "Attempt to bypass payment gateway",
+      "enabled": true,
+      "category": "payment_bypass"
+    },
+    {
+      "id": "EC_005",
+      "name": "Inventory Manipulation",
+      "pattern": "(stock|inventory|quantity).*(-\\d+|999999)",
+      "flags": "i",
+      "severity": 8,
+      "action": "block",
+      "message": "Attempt to manipulate inventory quantities",
+      "enabled": true,
+      "category": "inventory_fraud"
+    },
+    {
+      "id": "EC_006",
+      "name": "Coupon Code Exploitation",
+      "pattern": "(coupon|discount|promo).*(%|100|free)",
+      "flags": "i",
+      "severity": 6,
+      "action": "monitor",
+      "message": "Suspicious coupon code usage detected",
+      "enabled": true,
+      "category": "coupon_fraud"
+    },
+    {
+      "id": "EC_007",
+      "name": "Account Takeover Attempt",
+      "pattern": "(change_password|reset_password).*admin",
+      "flags": "i",
+      "severity": 9,
+      "action": "block",
+      "message": "Potential account takeover attempt",
+      "enabled": true,
+      "category": "account_fraud"
+    },
+    {
+      "id": "EC_008",
+      "name": "Mass Order Placement",
+      "pattern": "place_order.*quantity.*[5-9][0-9]+",
+      "flags": "i",
+      "severity": 7,
+      "action": "rate_limit",
+      "message": "Mass order placement detected",
+      "enabled": true,
+      "category": "bulk_ordering"
+    },
+    {
+      "id": "EC_009",
+      "name": "Gift Card Fraud",
+      "pattern": "(gift_card|gift_certificate).*balance.*[0-9]{4,}",
+      "flags": "i",
+      "severity": 8,
+      "action": "monitor",
+      "message": "Suspicious gift card activity",
+      "enabled": true,
+      "category": "gift_card_fraud"
+    },
+    {
+      "id": "EC_010",
+      "name": "Fake Review Detection",
+      "pattern": "(review|rating).*excellent.*amazing.*perfect",
+      "flags": "i",
+      "severity": 4,
+      "action": "monitor",
+      "message": "Potentially fake product review",
+      "enabled": true,
+      "category": "fake_reviews"
+    }
+  ]
+}

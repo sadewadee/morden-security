@@ -1,0 +1,80 @@
+{
+  "metadata": {
+    "name": "Malicious Bot Signatures",
+    "version": "1.0.0",
+    "description": "Known malicious bot patterns and signatures",
+    "last_updated": "2024-01-01"
+  },
+  "malicious_bots": [
+    {
+      "name": "SQLMap",
+      "patterns": ["sqlmap", "sqlmap/"],
+      "category": "sql_injection",
+      "risk_level": "critical",
+      "action": "block_immediately"
+    },
+    {
+      "name": "Nikto Scanner",
+      "patterns": ["nikto", "nikto/"],
+      "category": "vulnerability_scanner",
+      "risk_level": "high",
+      "action": "block_immediately"
+    },
+    {
+      "name": "Nmap Scanner",
+      "patterns": ["nmap", "nmap-nse"],
+      "category": "network_scanner",
+      "risk_level": "high",
+      "action": "block_immediately"
+    },
+    {
+      "name": "Masscan",
+      "patterns": ["masscan"],
+      "category": "port_scanner",
+      "risk_level": "high",
+      "action": "block_immediately"
+    },
+    {
+      "name": "ZGrab",
+      "patterns": ["zgrab"],
+      "category": "banner_grabber",
+      "risk_level": "medium",
+      "action": "monitor"
+    },
+    {
+      "name": "Generic cURL",
+      "patterns": ["curl/7.", "curl/8."],
+      "category": "automation_tool",
+      "risk_level": "medium",
+      "action": "challenge"
+    },
+    {
+      "name": "Wget",
+      "patterns": ["wget", "gnu wget"],
+      "category": "automation_tool",
+      "risk_level": "medium",
+      "action": "challenge"
+    },
+    {
+      "name": "Python Requests",
+      "patterns": ["python-requests", "python-urllib"],
+      "category": "automation_tool",
+      "risk_level": "medium",
+      "action": "monitor"
+    },
+    {
+      "name": "Scrapy Spider",
+      "patterns": ["scrapy"],
+      "category": "web_scraper",
+      "risk_level": "medium",
+      "action": "rate_limit"
+    },
+    {
+      "name": "Selenium Bot",
+      "patterns": ["selenium", "webdriver"],
+      "category": "automation_bot",
+      "risk_level": "low",
+      "action": "monitor"
+    }
+  ]
+}

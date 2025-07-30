@@ -1,0 +1,58 @@
+{
+  "metadata": {
+    "name": "Search Engine Bot Signatures",
+    "version": "1.0.0",
+    "description": "Known good search engine bots",
+    "last_updated": "2024-01-01"
+  },
+  "search_engines": [
+    {
+      "name": "Googlebot",
+      "patterns": ["googlebot", "google"],
+      "category": "search_engine",
+      "trust_level": "high",
+      "verification_dns": "google.com",
+      "rate_limit": 10
+    },
+    {
+      "name": "Bingbot",
+      "patterns": ["bingbot", "msnbot"],
+      "category": "search_engine",
+      "trust_level": "high",
+      "verification_dns": "microsoft.com",
+      "rate_limit": 10
+    },
+    {
+      "name": "Yahoo Slurp",
+      "patterns": ["slurp", "yahoo"],
+      "category": "search_engine",
+      "trust_level": "high",
+      "verification_dns": "yahoo.com",
+      "rate_limit": 8
+    },
+    {
+      "name": "DuckDuckBot",
+      "patterns": ["duckduckbot", "duckduckgo"],
+      "category": "search_engine",
+      "trust_level": "medium",
+      "verification_dns": "duckduckgo.com",
+      "rate_limit": 5
+    },
+    {
+      "name": "Baiduspider",
+      "patterns": ["baiduspider", "baidu"],
+      "category": "search_engine",
+      "trust_level": "medium",
+      "verification_dns": "baidu.com",
+      "rate_limit": 5
+    },
+    {
+      "name": "YandexBot",
+      "patterns": ["yandexbot", "yandex"],
+      "category": "search_engine",
+      "trust_level": "medium",
+      "verification_dns": "yandex.ru",
+      "rate_limit": 5
+    }
+  ]
+}

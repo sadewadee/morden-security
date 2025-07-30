@@ -1,0 +1,16 @@
+/.git
+/.github
+/tests
+/node_modules
+/vendor
+composer.lock
+package-lock.json
+phpunit.xml
+.gitignore
+.distignore
+README.md
+*.md
+.env*
+.DS_Store
+Thumbs.db
+/.vscode

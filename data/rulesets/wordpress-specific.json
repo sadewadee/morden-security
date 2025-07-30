@@ -1,0 +1,98 @@
+{
+  "metadata": {
+    "name": "WordPress Specific Security Rules",
+    "version": "1.0.0",
+    "description": "Security rules targeting WordPress-specific vulnerabilities",
+    "last_updated": "2024-01-01"
+  },
+  "rules": [
+    {
+      "id": "WP_001",
+      "name": "WordPress Config File Access",
+      "pattern": "(wp-config\\.php|wp-config-sample\\.php)",
+      "flags": "i",
+      "severity": 10,
+      "action": "block",
+      "message": "Attempt to access WordPress configuration files",
+      "enabled": true,
+      "category": "file_access"
+    },
+    {
+      "id": "WP_002",
+      "name": "Plugin Directory Traversal",
+      "pattern": "(\\/wp-content\\/plugins\\/.*\\.\\.\\/)",
+      "flags": "i",
+      "severity": 9,
+      "action": "block",
+      "message": "Directory traversal attempt in plugins directory",
+      "enabled": true,
+      "category": "directory_traversal"
+    },
+    {
+      "id": "WP_003",
+      "name": "Theme Directory Traversal",
+      "pattern": "(\\/wp-content\\/themes\\/.*\\.\\.\\/)",
+      "flags": "i",
+      "severity": 9,
+      "action": "block",
+      "message": "Directory traversal attempt in themes directory",
+      "enabled": true,
+      "category": "directory_traversal"
+    },
+    {
+      "id": "WP_004",
+      "name": "WordPress Admin Brute Force",
+      "pattern": "(wp-admin.*wp-login\\.php|wp-login\\.php)",
+      "flags": "i",
+      "severity": 6,
+      "action": "monitor",
+      "message": "WordPress admin login attempt detected",
+      "enabled": true,
+      "category": "brute_force"
+    },
+    {
+      "id": "WP_005",
+      "name": "XML-RPC Abuse",
+      "pattern": "xmlrpc\\.php",
+      "flags": "i",
+      "severity": 7,
+      "action": "monitor",
+      "message": "XML-RPC endpoint access detected",
+      "enabled": true,
+      "category": "xmlrpc_abuse"
+    },
+    {
+      "id": "WP_006",
+      "name": "WordPress Version Disclosure",
+      "pattern": "(wp-includes\\/js\\/|wp-content\\/themes\\/.*\\/style\\.css\\?ver=)",
+      "flags": "i",
+      "severity": 4,
+      "action": "monitor",
+      "message": "WordPress version disclosure attempt",
+      "enabled": true,
+      "category": "information_disclosure"
+    },
+    {
+      "id": "WP_007",
+      "name": "Plugin Enumeration",
+      "pattern": "(wp-content\\/plugins\\/[^\\s]*\\/(readme\\.txt|changelog\\.txt))",
+      "flags": "i",
+      "severity": 5,
+      "action": "monitor",
+      "message": "Plugin enumeration attempt detected",
+      "enabled": true,
+      "category": "enumeration"
+    },
+    {
+      "id": "WP_008",
+      "name": "Theme Enumeration",
+      "pattern": "(wp-content\\/themes\\/[^\\s]*\\/(readme\\.txt|style\\.css))",
+      "flags": "i",
+      "severity": 4,
+      "action": "monitor",
+      "message": "Theme enumeration attempt detected",
+      "enabled": true,
+      "category": "enumeration"
+    }
+  ]
+}

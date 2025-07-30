@@ -37,9 +37,11 @@ define('MS_GITHUB_REPO', 'sadewadee/morden-security');
 define('MS_GITHUB_API_URL', 'https://api.github.com/repos/' . MS_GITHUB_REPO);
 define('MS_UPDATE_CHECK_INTERVAL', 12 * HOUR_IN_SECONDS);
 
-require_once MS_PLUGIN_PATH . 'src/Autoloader/Autoloader.php';
+// Use Composer's autoloader
+if (file_exists(MS_PLUGIN_PATH . 'vendor/autoload.php')) {
+    require_once MS_PLUGIN_PATH . 'vendor/autoload.php';
+}
 
-use MordenSecurity\Autoloader\Autoloader;
 use MordenSecurity\Core\SecurityCore;
 
 final class MordenSecurityPlugin
@@ -81,7 +83,6 @@ final class MordenSecurityPlugin
             return;
         }
 
-        $this->setupAutoloader();
         $this->securityCore = new SecurityCore();
         $this->securityCore->initialize();
 
@@ -95,13 +96,6 @@ final class MordenSecurityPlugin
         }
 
         $this->securityCore->interceptRequest();
-    }
-
-    private function setupAutoloader(): void
-    {
-        $autoloader = new Autoloader();
-        $autoloader->addNamespace('MordenSecurity', MS_PLUGIN_PATH . 'src/');
-        $autoloader->register();
     }
 
     private function checkSystemRequirements(): bool

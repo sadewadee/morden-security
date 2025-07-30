@@ -1,0 +1,278 @@
+.ms-blocked-ips,
+.ms-whitelist-ips {
+    margin: 20px 0;
+}
+
+.ms-blocked-ips .tablenav {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.ms-blocked-ips .alignleft {
+    float: left;
+}
+
+.ms-blocked-ips .alignright {
+    float: right;
+}
+
+.ms-blocked-ips .displaying-num {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+#bulk-unblock {
+    background: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+#bulk-unblock:hover {
+    background: #c82333;
+    border-color: #bd2130;
+}
+
+.ms-block-type {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.ms-block-blacklist {
+    background: #dc3545;
+    color: white;
+}
+
+.ms-block-auto_blocked {
+    background: #fd7e14;
+    color: white;
+}
+
+.ms-block-whitelist {
+    background: #28a745;
+    color: white;
+}
+
+.ms-threat-score {
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.8rem;
+}
+
+.ms-score-low {
+    background: #d4edda;
+    color: #155724;
+}
+
+.ms-score-medium {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.ms-score-high {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.ms-score-critical {
+    background: #dc3545;
+    color: white;
+    animation: pulse-threat 2s infinite;
+}
+
+@keyframes pulse-threat {
+    0% { opacity: 1; }
+    50% { opacity: 0.8; }
+    100% { opacity: 1; }
+}
+
+.ms-permanent {
+    color: #dc3545;
+    font-weight: bold;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.ms-unblock-ip {
+    background: #28a745;
+    color: white;
+    border-color: #28a745;
+    margin-right: 5px;
+}
+
+.ms-unblock-ip:hover {
+    background: #218838;
+    border-color: #1e7e34;
+    color: white;
+}
+
+.ms-view-logs {
+    background: #007cba;
+    color: white;
+    border-color: #007cba;
+}
+
+.ms-view-logs:hover {
+    background: #005a87;
+    border-color: #004c75;
+    color: white;
+}
+
+.ms-add-rule {
+    margin-top: 20px;
+}
+
+.ms-ip-rule-form {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 25px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.ms-ip-rule-form .form-table th {
+    width: 200px;
+    padding: 20px 10px 20px 0;
+    font-weight: 600;
+}
+
+.ms-ip-rule-form .form-table td {
+    padding: 15px 10px;
+}
+
+.ms-ip-rule-form input[type="text"],
+.ms-ip-rule-form select,
+.ms-ip-rule-form textarea {
+    width: 100%;
+    max-width: 400px;
+}
+
+.ms-ip-rule-form textarea {
+    height: 80px;
+    resize: vertical;
+}
+
+.ms-ip-rule-form .description {
+    font-style: italic;
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 5px;
+}
+
+.check-column {
+    width: 40px;
+    text-align: center;
+}
+
+.check-column input[type="checkbox"] {
+    margin: 0;
+}
+
+#cb-select-all {
+    margin: 0;
+}
+
+.ms-whitelist-ips table {
+    margin-top: 0;
+}
+
+.ms-remove-whitelist {
+    background: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+.ms-remove-whitelist:hover {
+    background: #c82333;
+    border-color: #bd2130;
+    color: white;
+}
+
+.ms-ip-details {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.ms-ip-details h4 {
+    color: #333;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 5px;
+    margin-bottom: 15px;
+}
+
+.ms-ip-details .widefat {
+    margin-bottom: 20px;
+}
+
+.ms-ip-details .ip-stats {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    border-left: 4px solid #007cba;
+}
+
+.ms-ip-details .ip-stats h4 {
+    margin-top: 0;
+    color: #007cba;
+}
+
+.ms-ip-details .ip-stats p {
+    margin: 5px 0;
+}
+
+.ms-country-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+
+.ms-country-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+}
+
+.ms-country-item input[type="checkbox"] {
+    margin-right: 10px;
+}
+
+.ms-country-flag {
+    font-size: 1.2rem;
+    margin-right: 8px;
+}
+
+.ms-country-name {
+    font-weight: 500;
+}
+
+@media (max-width: 768px) {
+    .ms-blocked-ips .alignleft,
+    .ms-blocked-ips .alignright {
+        float: none;
+        display: block;
+        margin-bottom: 10px;
+    }
+
+    .ms-ip-rule-form .form-table th,
+    .ms-ip-rule-form .form-table td {
+        display: block;
+        width: 100%;
+        padding: 10px 0;
+    }
+
+    .ms-country-selector {
+        grid-template-columns: 1fr;
+    }
+}
