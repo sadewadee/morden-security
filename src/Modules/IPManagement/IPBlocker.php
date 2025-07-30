@@ -70,13 +70,18 @@ class IPBlocker
         $duration = Validation::validateBlockDuration($blockData['duration'] ?? 'temporary');
 
         $escalationLevel = $this->getEscalationLevel($ipAddress);
-        $blockDuration = $this->calculateBlockDuration($duration, $escalationLevel);
 
+        $numericBlockDuration = $this->calculateBlockDuration($duration, $escalationLevel);
+
+        $blockedUntil = null;
+        if ($duration !== 'permanent') {
+            $blockedUntil = time() + $numericBlockDuration;
+        }
         $ruleData = [
             'ip_address' => $ipAddress,
             'rule_type' => $ruleType,
             'block_duration' => $duration,
-            'blocked_until' => $duration === 'permanent' ? null : time() + $blockDuration,
+            'blocked_until' => $blockedUntil,
             'reason' => Validation::sanitizeLogMessage($blockData['reason'] ?? 'Manual block'),
             'threat_score' => Validation::validateThreatScore($blockData['threat_score'] ?? 0),
             'block_source' => $blockData['source'] ?? 'manual',

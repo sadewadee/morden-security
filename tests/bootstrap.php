@@ -53,6 +53,12 @@ if (!function_exists('current_user_can')) {
     }
 }
 
+if (!function_exists('wp_strip_all_tags')) {
+    function wp_strip_all_tags($string, $remove_breaks = false) {
+        return trim(strip_tags($string));
+    }
+}
+
 // Create logs directory
 if (!is_dir(MS_LOGS_DIR)) {
     wp_mkdir_p(MS_LOGS_DIR);
