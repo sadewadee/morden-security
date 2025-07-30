@@ -1,41 +1,50 @@
 <?php
 
-define('WP_TESTS_PHPUNIT_POLYFILLS_PATH', __DIR__ . '/../vendor/yoast/phpunit-polyfills/phpunitpolyfills-autoload.php');
-
-$_tests_dir = getenv('WP_TESTS_DIR');
-if (!$_tests_dir) {
-    $_tests_dir = rtrim(sys_get_temp_dir(), '/\\') . '/wordpress-tests-lib';
+// Skip WordPress setup for basic unit tests
+if (!defined('WP_TESTS_PHPUNIT_POLYFILLS_PATH')) {
+    define('WP_TESTS_PHPUNIT_POLYFILLS_PATH', __DIR__ . '/../vendor/yoast/phpunit-polyfills/phpunitpolyfills-autoload.php');
 }
 
-if (!file_exists($_tests_dir . '/includes/functions.php')) {
-    echo "Could not find $_tests_dir/includes/functions.php\n";
-    exit(1);
-}
-
-require_once $_tests_dir . '/includes/functions.php';
-
-function _manually_load_plugin() {
-    require dirname(__DIR__) . '/morden-security.php';
-}
-
-tests_add_filter('muplugins_loaded', '_manually_load_plugin');
-
-require $_tests_dir . '/includes/bootstrap.php';
-
-define('MS_TEST_MODE', true);
-
+// Define WordPress constants for testing
 if (!defined('ABSPATH')) {
-    define('ABSPATH', '/tmp/wordpress/');
+    define('ABSPATH', __DIR__ . '/../');
 }
 
 if (!defined('MS_PLUGIN_PATH')) {
-    define('MS_PLUGIN_PATH', dirname(__DIR__) . '/');
+    define('MS_PLUGIN_PATH', __DIR__ . '/../');
 }
 
 if (!defined('MS_LOGS_DIR')) {
     define('MS_LOGS_DIR', sys_get_temp_dir() . '/ms-logs/');
 }
 
+if (!defined('MS_PLUGIN_VERSION')) {
+    define('MS_PLUGIN_VERSION', '1.0.0');
+}
+
+// Mock WordPress functions for testing
+if (!function_exists('get_option')) {
+    function get_option($option, $default = false) {
+        return $default;
+    }
+}
+
+if (!function_exists('update_option')) {
+    function update_option($option, $value) {
+        return true;
+    }
+}
+
+if (!function_exists('wp_mkdir_p')) {
+    function wp_mkdir_p($target) {
+        return mkdir($target, 0755, true);
+    }
+}
+
+// Create logs directory
 if (!is_dir(MS_LOGS_DIR)) {
     wp_mkdir_p(MS_LOGS_DIR);
 }
+
+// Load composer autoloader
+require_once __DIR__ . '/../vendor/autoload.php';

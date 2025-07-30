@@ -32,7 +32,7 @@
 
     <php>
         <const name="PHPUNIT_COMPOSER_INSTALL" value="vendor/autoload.php" />
-        <env name="WP_TESTS_DIR" value="/tmp/wordpress-tests-lib" />
-        <env name="WP_CORE_DIR" value="/tmp/wordpress/" />
+        <env name="WP_TESTS_DIR" value="./tests/tmp/wordpress-tests-lib" />
+        <env name="WP_CORE_DIR" value="./tests/tmp/wordpress/" />
     </php>
 </phpunit>
