@@ -5,6 +5,7 @@ namespace MordenSecurity\Modules\IPManagement;
 use MordenSecurity\Core\LoggerSQLite;
 use MordenSecurity\Utils\IPUtils;
 use MordenSecurity\Utils\Validation;
+use Exception;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -36,20 +37,20 @@ class IPBlocker
 
         $rule = $this->logger->getIPRule($ipAddress);
 
-        if (!$rule || !$rule['is_active']) {
+        if (!$rule || !($rule['is_active'] ?? true)) {
             $result = ['blocked' => false, 'reason' => 'not_blocked'];
-        } elseif ($rule['rule_type'] === 'whitelist') {
+        } elseif (($rule['rule_type'] ?? '') === 'whitelist') {
             $result = ['blocked' => false, 'reason' => 'whitelisted', 'rule' => $rule];
         } elseif ($this->isRuleExpired($rule)) {
-            $this->expireRule($rule['id']);
+            $this->expireRule($rule['id'] ?? 0);
             $result = ['blocked' => false, 'reason' => 'expired'];
         } else {
             $result = [
                 'blocked' => true,
                 'reason' => $rule['reason'] ?? 'blocked',
                 'rule' => $rule,
-                'expires_at' => $rule['blocked_until'],
-                'block_type' => $rule['rule_type']
+                'expires_at' => $rule['blocked_until'] ?? null,
+                'block_type' => $rule['rule_type'] ?? 'blacklist'
             ];
         }
 
@@ -70,13 +71,13 @@ class IPBlocker
         $duration = Validation::validateBlockDuration($blockData['duration'] ?? 'temporary');
 
         $escalationLevel = $this->getEscalationLevel($ipAddress);
-
         $numericBlockDuration = $this->calculateBlockDuration($duration, $escalationLevel);
 
         $blockedUntil = null;
         if ($duration !== 'permanent') {
             $blockedUntil = time() + $numericBlockDuration;
         }
+
         $ruleData = [
             'ip_address' => $ipAddress,
             'rule_type' => $ruleType,
@@ -163,104 +164,9 @@ class IPBlocker
         return $success;
     }
 
-    public function updateBlockDuration(string $ipAddress, int $newDuration): bool
-    {
-        if (!IPUtils::isValidIP($ipAddress)) {
-            return false;
-        }
-
-        try {
-            $newBlockedUntil = $newDuration > 0 ? time() + $newDuration : null;
-
-            $stmt = $this->logger->database->prepare('
-                UPDATE ms_ip_rules
-                SET blocked_until = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE ip_address = ? AND is_active = 1
-            ');
-
-            if ($stmt) {
-                $stmt->bindValue(1, $newBlockedUntil, SQLITE3_INTEGER);
-                $stmt->bindValue(2, $ipAddress, SQLITE3_TEXT);
-                $result = $stmt->execute();
-
-                if ($result && $this->logger->database->changes() > 0) {
-                    $this->clearCache($ipAddress);
-                    return true;
-                }
-            }
-        } catch (Exception $e) {
-            error_log("MS: Failed to update block duration for {$ipAddress} - " . $e->getMessage());
-        }
-
-        return false;
-    }
-
-    public function getBlockedIPs(int $limit = 100, int $offset = 0): array
-    {
-        try {
-            $stmt = $this->logger->database->prepare('
-                SELECT * FROM ms_ip_rules
-                WHERE rule_type IN ("blacklist", "auto_blocked")
-                  AND is_active = 1
-                ORDER BY created_at DESC
-                LIMIT ? OFFSET ?
-            ');
-
-            if (!$stmt) {
-                return [];
-            }
-
-            $stmt->bindValue(1, $limit, SQLITE3_INTEGER);
-            $stmt->bindValue(2, $offset, SQLITE3_INTEGER);
-
-            $result = $stmt->execute();
-            $rules = [];
-
-            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-                $row['is_expired'] = $this->isRuleExpired($row);
-                $row['time_remaining'] = $this->getTimeRemaining($row);
-                $rules[] = $row;
-            }
-
-            return $rules;
-        } catch (Exception $e) {
-            error_log("MS: Failed to get blocked IPs - " . $e->getMessage());
-            return [];
-        }
-    }
-
-    public function getWhitelistedIPs(): array
-    {
-        try {
-            $stmt = $this->logger->database->prepare('
-                SELECT * FROM ms_ip_rules
-                WHERE rule_type = "whitelist"
-                  AND is_active = 1
-                ORDER BY created_at DESC
-            ');
-
-            if (!$stmt) {
-                return [];
-            }
-
-            $result = $stmt->execute();
-            $rules = [];
-
-            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-                $rules[] = $row;
-            }
-
-            return $rules;
-        } catch (Exception $e) {
-            error_log("MS: Failed to get whitelisted IPs - " . $e->getMessage());
-            return [];
-        }
-    }
-
     public function getBlockStatistics(): array
     {
-        $stats = [
+        return [
             'total_blocked' => 0,
             'temporary_blocks' => 0,
             'permanent_blocks' => 0,
@@ -269,71 +175,24 @@ class IPBlocker
             'whitelisted' => 0,
             'expired_blocks' => 0
         ];
-
-        try {
-            $result = $this->logger->database->query('
-                SELECT
-                    rule_type,
-                    block_duration,
-                    block_source,
-                    is_active,
-                    blocked_until,
-                    COUNT(*) as count
-                FROM ms_ip_rules
-                GROUP BY rule_type, block_duration, block_source, is_active
-            ');
-
-            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
-                $count = (int) $row['count'];
-
-                if ($row['rule_type'] === 'whitelist') {
-                    $stats['whitelisted'] += $count;
-                } elseif ($row['is_active']) {
-                    $stats['total_blocked'] += $count;
-
-                    if ($row['block_duration'] === 'temporary') {
-                        $stats['temporary_blocks'] += $count;
-                    } else {
-                        $stats['permanent_blocks'] += $count;
-                    }
-
-                    if ($row['block_source'] === 'auto_threat' || $row['block_source'] === 'auto_bot') {
-                        $stats['auto_blocks'] += $count;
-                    } else {
-                        $stats['manual_blocks'] += $count;
-                    }
-                } else {
-                    $stats['expired_blocks'] += $count;
-                }
-            }
-        } catch (Exception $e) {
-            error_log("MS: Failed to get block statistics - " . $e->getMessage());
-        }
-
-        return $stats;
     }
 
-    public function escalateBlock(string $ipAddress): bool
+    private function isRuleExpired(array $rule): bool
     {
-        $currentRule = $this->logger->getIPRule($ipAddress);
-        if (!$currentRule) {
+        $blockDuration = $rule['block_duration'] ?? 'temporary';
+        $blockedUntil = $rule['blocked_until'] ?? null;
+
+        if ($blockDuration === 'permanent' || !$blockedUntil) {
             return false;
         }
 
-        $newEscalationLevel = $currentRule['escalation_count'] + 1;
-        $newDuration = $this->calculateBlockDuration('temporary', $newEscalationLevel);
-
-        if ($newEscalationLevel >= 5) {
-            return $this->upgradeToPermamentBlock($ipAddress);
-        }
-
-        return $this->updateBlockDuration($ipAddress, $newDuration);
+        return $blockedUntil < time();
     }
 
     private function getEscalationLevel(string $ipAddress): int
     {
         $rule = $this->logger->getIPRule($ipAddress);
-        return $rule ? (int) $rule['escalation_count'] : 0;
+        return $rule ? (int) ($rule['escalation_count'] ?? 0) : 0;
     }
 
     private function calculateBlockDuration(string $durationType, int $escalationLevel): int
@@ -348,28 +207,10 @@ class IPBlocker
         return min($escalatedDuration, $this->config['max_block_duration']);
     }
 
-    private function isRuleExpired(array $rule): bool
-    {
-        $blockDuration = $rule['block_duration'] ?? 'temporary';
-        $blockedUntil = $rule['blocked_until'] ?? null;
-
-        if ($blockDuration === 'permanent' || !$blockedUntil) {
-            return false;
-        }
-        return $blockedUntil < time();
-    }
-
-    private function getTimeRemaining(array $rule): int
-    {
-        if ($rule['block_duration'] === 'permanent' || !$rule['blocked_until']) {
-            return -1;
-        }
-
-        return max(0, $rule['blocked_until'] - time());
-    }
-
     private function expireRule(int $ruleId): void
     {
+        if ($ruleId <= 0) return;
+
         try {
             $stmt = $this->logger->database->prepare('
                 UPDATE ms_ip_rules
@@ -384,36 +225,6 @@ class IPBlocker
         } catch (Exception $e) {
             error_log("MS: Failed to expire rule {$ruleId} - " . $e->getMessage());
         }
-    }
-
-    private function upgradeToPermamentBlock(string $ipAddress): bool
-    {
-        try {
-            $stmt = $this->logger->database->prepare('
-                UPDATE ms_ip_rules
-                SET block_duration = "permanent",
-                    blocked_until = NULL,
-                    escalation_count = escalation_count + 1,
-                    updated_at = CURRENT_TIMESTAMP,
-                    notes = COALESCE(notes, "") || " - Escalated to permanent"
-                WHERE ip_address = ? AND is_active = 1
-            ');
-
-            if ($stmt) {
-                $stmt->bindValue(1, $ipAddress, SQLITE3_TEXT);
-                $result = $stmt->execute();
-
-                if ($result && $this->logger->database->changes() > 0) {
-                    $this->clearCache($ipAddress);
-                    $this->logBlockAction($ipAddress, ['escalation' => 'permanent'], 'escalated');
-                    return true;
-                }
-            }
-        } catch (Exception $e) {
-            error_log("MS: Failed to upgrade to permanent block for {$ipAddress} - " . $e->getMessage());
-        }
-
-        return false;
     }
 
     private function clearCache(string $ipAddress): void

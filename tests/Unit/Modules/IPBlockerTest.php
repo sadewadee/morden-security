@@ -5,6 +5,7 @@ namespace MordenSecurity\Tests\Unit\Modules;
 use PHPUnit\Framework\TestCase;
 use MordenSecurity\Core\LoggerSQLite;
 use MordenSecurity\Modules\IPManagement\IPBlocker;
+use SQLite3;
 
 class IPBlockerTest extends TestCase
 {
@@ -14,6 +15,7 @@ class IPBlockerTest extends TestCase
     protected function setUp(): void
     {
         $this->logger = $this->createMock(LoggerSQLite::class);
+        $this->logger->database = $this->createMock(SQLite3::class);
         $this->ipBlocker = new IPBlocker($this->logger);
     }
 
@@ -33,6 +35,7 @@ class IPBlockerTest extends TestCase
             'id' => 1,
             'ip_address' => '192.168.1.100',
             'rule_type' => 'blacklist',
+            'block_duration' => 'temporary',
             'is_active' => 1,
             'blocked_until' => time() + 3600,
             'reason' => 'Test block'
@@ -53,6 +56,7 @@ class IPBlockerTest extends TestCase
             'id' => 1,
             'ip_address' => '192.168.1.100',
             'rule_type' => 'blacklist',
+            'block_duration' => 'temporary',
             'is_active' => 1,
             'blocked_until' => time() - 3600,
             'reason' => 'Expired block'
@@ -72,6 +76,7 @@ class IPBlockerTest extends TestCase
             'id' => 1,
             'ip_address' => '192.168.1.50',
             'rule_type' => 'whitelist',
+            'block_duration' => 'permanent',
             'is_active' => 1,
             'blocked_until' => null,
             'reason' => 'Whitelisted'
@@ -96,6 +101,7 @@ class IPBlockerTest extends TestCase
     public function testAddBlockReturnsTrueForValidIP(): void
     {
         $this->logger->method('addIPRule')->willReturn(true);
+        $this->logger->method('getIPRule')->willReturn(null);
         $this->logger->method('logSecurityEvent')->willReturn(true);
 
         $blockData = [
@@ -133,8 +139,6 @@ class IPBlockerTest extends TestCase
 
     public function testGetBlockStatisticsReturnsArray(): void
     {
-        $this->logger->method('database')->willReturn($this->createMock(\SQLite3::class));
-
         $stats = $this->ipBlocker->getBlockStatistics();
 
         $this->assertIsArray($stats);
