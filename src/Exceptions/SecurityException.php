@@ -2,6 +2,9 @@
 
 namespace MordenSecurity\Exceptions;
 
+use Exception;
+use Throwable;
+
 if (!defined('ABSPATH')) {
     exit;
 }

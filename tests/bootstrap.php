@@ -41,6 +41,18 @@ if (!function_exists('wp_mkdir_p')) {
     }
 }
 
+if (!function_exists('get_current_user_id')) {
+    function get_current_user_id() {
+        return 1;
+    }
+}
+
+if (!function_exists('current_user_can')) {
+    function current_user_can($capability) {
+        return true;
+    }
+}
+
 // Create logs directory
 if (!is_dir(MS_LOGS_DIR)) {
     wp_mkdir_p(MS_LOGS_DIR);

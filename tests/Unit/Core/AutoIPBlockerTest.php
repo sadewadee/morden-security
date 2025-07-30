@@ -21,6 +21,7 @@ class AutoIPBlockerTest extends TestCase
     {
         $this->logger->method('getIPRule')->willReturn(null);
         $this->logger->method('getIPThreatScore')->willReturn(25);
+        $this->logger->method('logSecurityEvent')->willReturn(true);
 
         $result = $this->autoBlocker->evaluateIPThreat('192.168.1.1');
 
@@ -42,6 +43,9 @@ class AutoIPBlockerTest extends TestCase
 
     public function testPrivateIPsAreAllowed(): void
     {
+        $this->logger->method('getIPRule')->willReturn(null);
+        $this->logger->method('logSecurityEvent')->willReturn(true);
+
         $result = $this->autoBlocker->evaluateIPThreat('192.168.1.1');
 
         $this->assertEquals('allow', $result['action']);
