@@ -1,0 +1,98 @@
+{
+  "metadata": {
+    "name": "OWASP Core Rule Set",
+    "version": "1.0.0",
+    "description": "Core security rules based on OWASP guidelines",
+    "last_updated": "2024-01-01"
+  },
+  "rules": [
+    {
+      "id": "OWASP_001",
+      "name": "SQL Injection Detection - Union Based",
+      "pattern": "(union\\s+select|select.+from\\s+information_schema)",
+      "flags": "i",
+      "severity": 9,
+      "action": "block",
+      "message": "SQL injection attempt detected (Union-based)",
+      "enabled": true,
+      "category": "sql_injection"
+    },
+    {
+      "id": "OWASP_002",
+      "name": "SQL Injection Detection - Boolean Based",
+      "pattern": "(\\sor\\s+.+?=.+?|\\sand\\s+.+?=.+?)",
+      "flags": "i",
+      "severity": 8,
+      "action": "block",
+      "message": "SQL injection attempt detected (Boolean-based)",
+      "enabled": true,
+      "category": "sql_injection"
+    },
+    {
+      "id": "OWASP_003",
+      "name": "XSS Detection - Script Tags",
+      "pattern": "<script\\b[^<]*(?:(?!<\\/script>)<[^<]*)*<\\/script>",
+      "flags": "i",
+      "severity": 9,
+      "action": "block",
+      "message": "Cross-site scripting attempt detected (Script injection)",
+      "enabled": true,
+      "category": "xss"
+    },
+    {
+      "id": "OWASP_004",
+      "name": "XSS Detection - Event Handlers",
+      "pattern": "on\\w+\\s*=\\s*[\"']?[^\"'\\s>]+",
+      "flags": "i",
+      "severity": 7,
+      "action": "block",
+      "message": "Cross-site scripting attempt detected (Event handler)",
+      "enabled": true,
+      "category": "xss"
+    },
+    {
+      "id": "OWASP_005",
+      "name": "Local File Inclusion Detection",
+      "pattern": "(\\.\\.\\/.*\\.\\.\\/.*\\.\\.\\/|\\/etc\\/passwd|\\/etc\\/shadow)",
+      "flags": "i",
+      "severity": 9,
+      "action": "block",
+      "message": "Local file inclusion attempt detected",
+      "enabled": true,
+      "category": "lfi"
+    },
+    {
+      "id": "OWASP_006",
+      "name": "Remote File Inclusion Detection",
+      "pattern": "(https?:\\/\\/[^\\/\\s]+|ftp:\\/\\/[^\\/\\s]+)",
+      "flags": "i",
+      "severity": 8,
+      "action": "block",
+      "message": "Remote file inclusion attempt detected",
+      "enabled": true,
+      "category": "rfi"
+    },
+    {
+      "id": "OWASP_007",
+      "name": "Command Injection Detection",
+      "pattern": "(;\\s*(rm|del|format)|\\|\\s*(nc|netcat|telnet)|`.*`|\\$\\(.*\\))",
+      "flags": "i",
+      "severity": 10,
+      "action": "block",
+      "message": "Command injection attempt detected",
+      "enabled": true,
+      "category": "command_injection"
+    },
+    {
+      "id": "OWASP_008",
+      "name": "Directory Traversal Detection",
+      "pattern": "(\\.\\.\\/|\\.\\.\\\\\|%2e%2e%2f|%2e%2e%5c)",
+      "flags": "i",
+      "severity": 7,
+      "action": "block",
+      "message": "Directory traversal attempt detected",
+      "enabled": true,
+      "category": "directory_traversal"
+    }
+  ]
+}

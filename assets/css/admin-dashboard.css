@@ -1,0 +1,319 @@
+.ms-dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.ms-stat-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.ms-stat-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+}
+
+.ms-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.ms-stat-card.blocked {
+    border-left: 4px solid #dc3545;
+}
+
+.ms-stat-card.bots {
+    border-left: 4px solid #fd7e14;
+}
+
+.ms-stat-card.firewall {
+    border-left: 4px solid #6610f2;
+}
+
+.ms-stat-card.total {
+    border-left: 4px solid #007cba;
+}
+
+.ms-stat-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    line-height: 1;
+    margin-bottom: 8px;
+}
+
+.ms-stat-label {
+    font-size: 0.9rem;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.ms-threat-level-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    grid-column: span 2;
+}
+
+.ms-threat-level-card h3 {
+    margin: 0 0 15px 0;
+    color: #333;
+}
+
+.ms-threat-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.ms-threat-level {
+    font-size: 1.5rem;
+    font-weight: bold;
+    padding: 10px 20px;
+    border-radius: 25px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.ms-threat-low .ms-threat-level {
+    background: #28a745;
+    color: white;
+}
+
+.ms-threat-medium .ms-threat-level {
+    background: #ffc107;
+    color: #212529;
+}
+
+.ms-threat-high .ms-threat-level {
+    background: #fd7e14;
+    color: white;
+}
+
+.ms-threat-critical .ms-threat-level {
+    background: #dc3545;
+    color: white;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.ms-threat-description {
+    font-size: 0.9rem;
+    color: #666;
+    max-width: 300px;
+}
+
+.ms-recent-events,
+.ms-top-threats {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.ms-recent-events h3,
+.ms-top-threats h3 {
+    margin: 0 0 15px 0;
+    color: #333;
+    border-bottom: 2px solid #007cba;
+    padding-bottom: 10px;
+}
+
+.ms-table-container {
+    overflow-x: auto;
+}
+
+.ms-event-type {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.ms-event-request_blocked {
+    background: #dc3545;
+    color: white;
+}
+
+.ms-event-bot_detected {
+    background: #fd7e14;
+    color: white;
+}
+
+.ms-event-firewall_block {
+    background: #6610f2;
+    color: white;
+}
+
+.ms-event-request_allowed {
+    background: #28a745;
+    color: white;
+}
+
+.ms-severity {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: bold;
+}
+
+.ms-severity-1 {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.ms-severity-2 {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.ms-severity-3 {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.ms-severity-4 {
+    background: #dc3545;
+    color: white;
+}
+
+.ms-country-flag {
+    font-size: 0.7rem;
+    color: #666;
+    margin-top: 2px;
+}
+
+.ms-threat-score {
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.ms-score-low {
+    background: #d4edda;
+    color: #155724;
+}
+
+.ms-score-medium {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.ms-score-high {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.ms-score-critical {
+    background: #dc3545;
+    color: white;
+}
+
+.ms-block-ip,
+.ms-unblock-ip,
+.ms-view-details,
+.ms-view-logs {
+    margin-right: 5px;
+}
+
+.ms-settings-form .form-table th {
+    width: 250px;
+    padding: 20px 10px 20px 0;
+}
+
+.ms-settings-form .form-table td {
+    padding: 15px 10px;
+}
+
+.ms-ip-rule-form {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.ms-blocked-ips .tablenav,
+.ms-whitelist-ips .tablenav {
+    margin: 15px 0;
+    padding: 8px 0;
+    border-bottom: 1px solid #ddd;
+}
+
+.ms-block-type {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.ms-block-blacklist {
+    background: #dc3545;
+    color: white;
+}
+
+.ms-block-auto_blocked {
+    background: #fd7e14;
+    color: white;
+}
+
+.ms-block-whitelist {
+    background: #28a745;
+    color: white;
+}
+
+.ms-permanent {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.ms-threat-count {
+    background: #dc3545;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+@media (max-width: 768px) {
+    .ms-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ms-stat-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .ms-threat-level-card {
+        grid-column: span 1;
+    }
+
+    .ms-table-container {
+        overflow-x: scroll;
+    }
+}
