@@ -147,6 +147,31 @@ class AdminController
             true
         );
 
+
+
+        if ($hook === 'morden-security_page_morden-security-bots') {
+            wp_enqueue_style(
+                'ms-bot-detection',
+                MS_PLUGIN_URL . 'assets/css/bot-detection.css',
+                [],
+                MS_PLUGIN_VERSION
+            );
+            wp_enqueue_script(
+                'chart-js',
+                'https://cdn.jsdelivr.net/npm/chart.js',
+                [],
+                '3.9.1',
+                true
+            );
+            wp_enqueue_script(
+                'ms-bot-detection',
+                MS_PLUGIN_URL . 'assets/js/bot-detection.js',
+                ['jquery', 'ms-admin-dashboard', 'chart-js'],
+                MS_PLUGIN_VERSION,
+                true
+            );
+        }
+
         wp_localize_script('ms-admin-dashboard', 'msAdmin', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('ms_admin_nonce')

@@ -57,65 +57,72 @@ class Dashboard {
                 </div>
             </div>
 
-            <!-- Responsive dashboard grid -->
-            <div class="ms-dashboard-grid">
-                <div class="ms-recent-events">
-                    <h3><?php _e('Recent Security Events', 'morden-security'); ?></h3>
-                    <div class="ms-table-container">
-                        <table class="wp-list-table widefat fixed striped">
-                            <thead>
-                                <tr>
-                                    <th style="width: 120px;"><?php _e('Time', 'morden-security'); ?></th>
-                                    <th style="width: 100px;"><?php _e('IP Address', 'morden-security'); ?></th>
-                                    <th style="width: 80px;"><?php _e('Type', 'morden-security'); ?></th>
-                                    <th style="width: 60px;"><?php _e('Severity', 'morden-security'); ?></th>
-                                    <th><?php _e('Message', 'morden-security'); ?></th>
-                                    <th style="width: 100px;"><?php _e('Actions', 'morden-security'); ?></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($recentEvents)): ?>
+            <div class="ms-dashboard-columns">
+                <div class="ms-dashboard-main">
+                    <div class="ms-recent-events">
+                        <h3><?php _e('Recent Security Events', 'morden-security'); ?></h3>
+                        <div class="ms-table-container">
+                            <table class="wp-list-table widefat fixed striped">
+                                <thead>
                                     <tr>
-                                        <td colspan="6" style="text-align: center; padding: 20px;">
-                                            <?php _e('No recent security events found.', 'morden-security'); ?>
-                                        </td>
+                                        <th style="width: 120px;"><?php _e('Time', 'morden-security'); ?></th>
+                                        <th style="width: 100px;"><?php _e('IP Address', 'morden-security'); ?></th>
+                                        <th style="width: 80px;"><?php _e('Type', 'morden-security'); ?></th>
+                                        <th style="width: 60px;"><?php _e('Severity', 'morden-security'); ?></th>
+                                        <th><?php _e('Message', 'morden-security'); ?></th>
+                                        <th style="width: 100px;"><?php _e('Actions', 'morden-security'); ?></th>
                                     </tr>
-                                <?php else: ?>
-                                    <?php foreach ($recentEvents as $event): ?>
+                                </thead>
+                                <tbody>
+                                    <?php if (empty($recentEvents)): ?>
                                         <tr>
-                                            <td>
-                                                <span class="ms-timestamp" data-timestamp="<?php echo esc_attr($event['timestamp']); ?>">
-                                                    <?php echo esc_html(date('M j, H:i', $event['timestamp'])); ?>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span class="ms-ip-address"><?php echo esc_html($event['ip_address']); ?></span>
-                                                <div class="ms-country-flag"><?php echo esc_html($event['country_code'] ?? ''); ?></div>
-                                            </td>
-                                            <td>
-                                                <span class="ms-event-type ms-event-<?php echo esc_attr($event['event_type']); ?>">
-                                                    <?php echo esc_html($event['event_type']); ?>
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span class="ms-severity ms-severity-<?php echo esc_attr($event['severity']); ?>">
-                                                    <?php echo esc_html($this->getSeverityLabel($event['severity'])); ?>
-                                                </span>
-                                            </td>
-                                            <td class="ms-message">
-                                                <?php echo esc_html(wp_trim_words($event['message'], 10)); ?>
-                                            </td>
-                                            <td>
-                                                <button class="button button-small ms-view-details"
-                                                        data-ip="<?php echo esc_attr($event['ip_address']); ?>">
-                                                    <?php _e('Details', 'morden-security'); ?>
-                                                </button>
+                                            <td colspan="6" style="text-align: center; padding: 20px;">
+                                                <?php _e('No recent security events found.', 'morden-security'); ?>
                                             </td>
                                         </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
+                                    <?php else: ?>
+                                        <?php foreach ($recentEvents as $event): ?>
+                                            <tr>
+                                                <td>
+                                                    <span class="ms-timestamp" data-timestamp="<?php echo esc_attr($event['timestamp']); ?>">
+                                                        <?php echo esc_html(date('M j, H:i', $event['timestamp'])); ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="ms-ip-address"><?php echo esc_html($event['ip_address']); ?></span>
+                                                    <div class="ms-country-flag"><?php echo esc_html($event['country_code'] ?? ''); ?></div>
+                                                </td>
+                                                <td>
+                                                    <span class="ms-event-type ms-event-<?php echo esc_attr($event['event_type']); ?>">
+                                                        <?php echo esc_html($event['event_type']); ?>
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="ms-severity ms-severity-<?php echo esc_attr($event['severity']); ?>">
+                                                        <?php echo esc_html($this->getSeverityLabel($event['severity'])); ?>
+                                                    </span>
+                                                </td>
+                                                <td class="ms-message">
+                                                    <?php echo esc_html(wp_trim_words($event['message'], 10)); ?>
+                                                </td>
+                                                <td>
+                                                    <button class="button button-small ms-view-details"
+                                                            data-ip="<?php echo esc_attr($event['ip_address']); ?>">
+                                                        <?php _e('Details', 'morden-security'); ?>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="ms-dashboard-side">
+                    <div class="ms-top-threats">
+                        <h3><?php _e('Top Threats', 'morden-security'); ?></h3>
+                        <p><?php _e('Coming soon...', 'morden-security'); ?></p>
                     </div>
                 </div>
             </div>

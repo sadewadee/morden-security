@@ -5,6 +5,18 @@
     margin-top: 20px;
 }
 
+.ms-dashboard-columns {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 30px;
+}
+
+.ms-dashboard-main {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
 .ms-stat-cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -257,7 +269,7 @@
 }
 
 /* Dark mode support */
-@media (prefers-color-scheme: dark) {
+/* @media (prefers-color-scheme: dark) {
     .ms-stat-card,
     .ms-recent-events,
     .ms-top-threats,
@@ -270,4 +282,4 @@
     .ms-stat-label {
         color: #ccc;
     }
-}
+} */

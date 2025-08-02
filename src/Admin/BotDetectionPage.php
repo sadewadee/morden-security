@@ -22,6 +22,8 @@ class BotDetectionPage
 
     public function render(): void
     {
+        $this->handleWhitelistSubmission();
+
         $activeTab = sanitize_key($_GET['tab'] ?? 'overview');
         $botEvents = $this->getBotEvents();
         $statistics = $this->getBotStatistics();
@@ -64,6 +66,30 @@ class BotDetectionPage
         <?php
     }
 
+    private function handleWhitelistSubmission(): void
+    {
+        if (isset($_POST['ms_bot_whitelist_nonce']) && wp_verify_nonce($_POST['ms_bot_whitelist_nonce'], 'ms_add_bot_whitelist')) {
+            $pattern = sanitize_text_field($_POST['bot_pattern']);
+            $notes = sanitize_text_field($_POST['bot_notes']);
+
+            if (!empty($pattern)) {
+                $this->logger->addBotWhitelistRule([
+                    'user_agent_pattern' => $pattern,
+                    'notes' => $notes,
+                    'created_by' => get_current_user_id()
+                ]);
+            }
+        }
+
+        if (isset($_GET['action'], $_GET['bot_id'], $_GET['_wpnonce']) &&
+            $_GET['action'] === 'remove_bot_whitelist' &&
+            wp_verify_nonce($_GET['_wpnonce'], 'ms_remove_bot_whitelist_' . $_GET['bot_id'])) {
+
+            $botId = (int) $_GET['bot_id'];
+            $this->logger->removeBotWhitelistRule($botId);
+        }
+    }
+
     private function renderOverviewTab(array $statistics): void
     {
         ?>
@@ -90,52 +116,61 @@ class BotDetectionPage
                 </div>
             </div>
 
-            <div class="ms-bot-charts">
-                <div class="ms-chart-container">
-                    <h3><?php _e('Bot Detection Trends (24h)', 'morden-security'); ?></h3>
-                    <canvas id="botTrendsChart" width="400" height="200"></canvas>
-                </div>
+            <div class="ms-dashboard-columns">
+                <div class="ms-dashboard-main">
+                    <div class="ms-bot-charts">
+                        <div class="ms-chart-container">
+                            <h3><?php _e('Bot Detection Trends (24h)', 'morden-security'); ?></h3>
+                            <div class="ms-chart-canvas-wrapper">
+                                <canvas id="botTrendsChart"></canvas>
+                            </div>
+                        </div>
 
-                <div class="ms-chart-container">
-                    <h3><?php _e('Bot Types Distribution', 'morden-security'); ?></h3>
-                    <canvas id="botTypesChart" width="400" height="200"></canvas>
+                        <div class="ms-chart-container">
+                            <h3><?php _e('Bot Types Distribution', 'morden-security'); ?></h3>
+                            <div class="ms-chart-canvas-wrapper">
+                                <canvas id="botTypesChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-
-            <div class="ms-top-bot-ips">
-                <h3><?php _e('Top Bot IP Addresses', 'morden-security'); ?></h3>
-                <table class="wp-list-table widefat fixed striped">
-                    <thead>
-                        <tr>
-                            <th><?php _e('IP Address', 'morden-security'); ?></th>
-                            <th><?php _e('Bot Type', 'morden-security'); ?></th>
-                            <th><?php _e('Detection Count', 'morden-security'); ?></th>
-                            <th><?php _e('Last Seen', 'morden-security'); ?></th>
-                            <th><?php _e('Status', 'morden-security'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($statistics['top_bot_ips'] as $botIP): ?>
-                        <tr>
-                            <td><code><?php echo esc_html($botIP['ip_address']); ?></code></td>
-                            <td>
-                                <span class="ms-bot-type ms-bot-<?php echo esc_attr($botIP['type']); ?>">
-                                    <?php echo esc_html(ucfirst(str_replace('_', ' ', $botIP['type']))); ?>
-                                </span>
-                            </td>
-                            <td><?php echo number_format($botIP['count']); ?></td>
-                            <td><?php echo esc_html(human_time_diff($botIP['last_seen'], time()) . ' ago'); ?></td>
-                            <td>
-                                <?php if ($botIP['is_blocked']): ?>
-                                    <span class="ms-status-blocked"><?php _e('Blocked', 'morden-security'); ?></span>
-                                <?php else: ?>
-                                    <span class="ms-status-allowed"><?php _e('Allowed', 'morden-security'); ?></span>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <div class="ms-dashboard-side">
+                    <div class="ms-top-bot-ips">
+                        <h3><?php _e('Top Bot IP Addresses', 'morden-security'); ?></h3>
+                        <table class="wp-list-table widefat fixed striped">
+                            <thead>
+                                <tr>
+                                    <th><?php _e('IP Address', 'morden-security'); ?></th>
+                                    <th><?php _e('Bot Type', 'morden-security'); ?></th>
+                                    <th><?php _e('Detection Count', 'morden-security'); ?></th>
+                                    <th><?php _e('Last Seen', 'morden-security'); ?></th>
+                                    <th><?php _e('Status', 'morden-security'); ?></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($statistics['top_bot_ips'] as $botIP): ?>
+                                <tr>
+                                    <td><code><?php echo esc_html($botIP['ip_address']); ?></code></td>
+                                    <td>
+                                        <span class="ms-bot-type ms-bot-<?php echo esc_attr($botIP['type']); ?>">
+                                            <?php echo esc_html(ucfirst(str_replace('_', ' ', $botIP['type']))); ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo number_format($botIP['count']); ?></td>
+                                    <td><?php echo esc_html(human_time_diff($botIP['last_seen'], time()) . ' ago'); ?></td>
+                                    <td>
+                                        <?php if ($botIP['is_blocked']): ?>
+                                            <span class="ms-status-blocked"><?php _e('Blocked', 'morden-security'); ?></span>
+                                        <?php else: ?>
+                                            <span class="ms-status-allowed"><?php _e('Allowed', 'morden-security'); ?></span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
         <?php
@@ -209,7 +244,7 @@ class BotDetectionPage
 
     private function renderWhitelistTab(): void
     {
-        $whitelistedBots = $this->getWhitelistedBots();
+        $whitelistedBots = $this->logger->getBotWhitelistRules();
 
         ?>
         <div class="ms-bot-whitelist">
@@ -221,23 +256,23 @@ class BotDetectionPage
                     <table class="form-table">
                         <tr>
                             <th scope="row">
-                                <label for="bot_pattern"><?php _e('Bot Pattern', 'morden-security'); ?></label>
+                                <label for="bot_pattern"><?php _e('User Agent Pattern', 'morden-security'); ?></label>
                             </th>
                             <td>
                                 <input type="text" id="bot_pattern" name="bot_pattern" class="regular-text"
                                        placeholder="googlebot" required>
                                 <p class="description">
-                                    <?php _e('User agent pattern to whitelist (case-insensitive)', 'morden-security'); ?>
+                                    <?php _e('Enter a part of the User-Agent string to whitelist (e.g., "googlebot", "MyCustomCrawler"). Case-insensitive.', 'morden-security'); ?>
                                 </p>
                             </td>
                         </tr>
                         <tr>
                             <th scope="row">
-                                <label for="bot_name"><?php _e('Bot Name', 'morden-security'); ?></label>
+                                <label for="bot_notes"><?php _e('Notes', 'morden-security'); ?></label>
                             </th>
                             <td>
-                                <input type="text" id="bot_name" name="bot_name" class="regular-text"
-                                       placeholder="Google Bot" required>
+                                <input type="text" id="bot_notes" name="bot_notes" class="regular-text"
+                                       placeholder="<?php _e('e.g., My friendly monitoring service', 'morden-security'); ?>">
                             </td>
                         </tr>
                     </table>
@@ -251,8 +286,9 @@ class BotDetectionPage
                 <table class="wp-list-table widefat fixed striped">
                     <thead>
                         <tr>
-                            <th><?php _e('Bot Name', 'morden-security'); ?></th>
-                            <th><?php _e('Pattern', 'morden-security'); ?></th>
+                            <th><?php _e('User Agent Pattern', 'morden-security'); ?></th>
+                            <th><?php _e('Notes', 'morden-security'); ?></th>
+                            <th><?php _e('Added By', 'morden-security'); ?></th>
                             <th><?php _e('Added Date', 'morden-security'); ?></th>
                             <th><?php _e('Actions', 'morden-security'); ?></th>
                         </tr>
@@ -260,14 +296,15 @@ class BotDetectionPage
                     <tbody>
                         <?php foreach ($whitelistedBots as $bot): ?>
                         <tr>
-                            <td><?php echo esc_html($bot['name']); ?></td>
-                            <td><code><?php echo esc_html($bot['pattern']); ?></code></td>
+                            <td><code><?php echo esc_html($bot['user_agent_pattern']); ?></code></td>
+                            <td><?php echo esc_html($bot['notes']); ?></td>
+                            <td><?php echo esc_html(get_user_by('id', $bot['created_by'])->display_name ?? 'Unknown'); ?></td>
                             <td><?php echo esc_html(date('Y-m-d H:i:s', strtotime($bot['created_at']))); ?></td>
                             <td>
-                                <button class="button button-small ms-remove-bot-whitelist"
-                                        data-bot-id="<?php echo esc_attr($bot['id']); ?>">
+                                <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=morden-security-bots&tab=whitelist&action=remove_bot_whitelist&bot_id=' . $bot['id']), 'ms_remove_bot_whitelist_' . $bot['id']); ?>"
+                                   class="button button-small button-danger">
                                     <?php _e('Remove', 'morden-security'); ?>
-                                </button>
+                                </a>
                             </td>
                         </tr>
                         <?php endforeach; ?>
@@ -286,7 +323,7 @@ class BotDetectionPage
 
         foreach ($events as &$event) {
             $context = json_decode($event['context'], true) ?? [];
-            $event['bot_type'] = $context['bot_type'] ?? 'unknown';
+            $event['bot_type'] = $context['type'] ?? 'unknown';
             $event['confidence'] = $context['confidence'] ?? 0;
             $event['action'] = $event['action_taken'] ?? 'unknown';
         }
@@ -313,9 +350,9 @@ class BotDetectionPage
                 $stats['total_bots']++;
 
                 $context = json_decode($event['context'], true) ?? [];
-                $botType = $context['bot_type'] ?? 'unknown';
+                $botType = $context['type'] ?? 'unknown';
 
-                if ($botType === 'malicious_bot') {
+                if ($botType === 'malicious_bot' || $botType === 'behavioral_block') {
                     $stats['malicious_bots']++;
                 } elseif ($botType === 'good_bot') {
                     $stats['good_bots']++;
@@ -345,13 +382,5 @@ class BotDetectionPage
         $stats['top_bot_ips'] = array_slice($botIPs, 0, 10);
 
         return $stats;
-    }
-
-    private function getWhitelistedBots(): array
-    {
-        return get_option('ms_whitelisted_bots', [
-            ['id' => 1, 'name' => 'Google Bot', 'pattern' => 'googlebot', 'created_at' => '2024-01-01 00:00:00'],
-            ['id' => 2, 'name' => 'Bing Bot', 'pattern' => 'bingbot', 'created_at' => '2024-01-01 00:00:00']
-        ]);
     }
 }

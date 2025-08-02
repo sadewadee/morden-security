@@ -18,3 +18,4 @@ CONTRIBUTING.md
 .phpunit.result.cache
 coverage.xml
 .vscode/
+.gemini/

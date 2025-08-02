@@ -8,7 +8,7 @@ use MordenSecurity\Modules\WAF\RulesetManager;
 use MordenSecurity\Core\LoggerSQLite;
 use MordenSecurity\Core\BotDetection;
 use MordenSecurity\Core\Firewall;
-use MordenSecurity\Core\AutoIPBlocker;
+use MordenSecurity\Modules\IPManagement\BlockingEngine;
 use MordenSecurity\Utils\IPUtils;
 
 if (!defined('ABSPATH')) {
@@ -34,7 +34,7 @@ class SecurityCore {
         // Initialize other components
         $this->firewall = new Firewall($this->logger, $this->wafEngine);
         $this->botDetection = new BotDetection($this->logger);
-        $this->autoIPBlocker = new AutoIPBlocker($this->logger);
+        $this->blockingEngine = new BlockingEngine($this->logger);
     }
 
     public function getSecurityStatus(): array
@@ -97,7 +97,7 @@ class SecurityCore {
         }
 
         // Auto IP blocking check
-        $ipCheck = $this->autoIPBlocker->evaluateIPThreat($ipAddress);
+        $ipCheck = $this->blockingEngine->evaluateRequest($ipAddress);
         if ($ipCheck['action'] === 'block') {
             $this->logSecurityEvent('ip_blocked', $ipAddress, $ipCheck);
             $this->blockRequest('Access Denied - IP Blocked');
@@ -243,5 +243,10 @@ class SecurityCore {
         if (get_option('ms_maintenance_mode', false) && !current_user_can('administrator')) {
             wp_die(__('Site temporarily unavailable for maintenance.', 'morden-security'));
         }
+    }
+
+    public function getBotDetectionStats(): array
+    {
+        return $this->logger->getBotDetectionStats();
     }
 }

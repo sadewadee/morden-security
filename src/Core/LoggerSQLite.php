@@ -14,6 +14,7 @@ class LoggerSQLite
     public SQLite3 $database;
     private string $tableName = 'ms_security_events';
     private string $ipRulesTable = 'ms_ip_rules';
+    private string $botWhitelistTable = 'ms_bot_whitelist';
     private string $dbPath;
 
     public function __construct()
@@ -341,6 +342,7 @@ class LoggerSQLite
     {
         $this->createSecurityEventsTable();
         $this->createIPRulesTable();
+        $this->createBotWhitelistTable();
         $this->createIndexes();
     }
 
@@ -391,6 +393,80 @@ class LoggerSQLite
         $this->database->exec($sql);
     }
 
+    private function createBotWhitelistTable(): void
+    {
+        $sql = '
+            CREATE TABLE IF NOT EXISTS ' . $this->botWhitelistTable . ' (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_agent_pattern TEXT NOT NULL UNIQUE,
+                notes TEXT,
+                created_by INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ';
+
+        $this->database->exec($sql);
+    }
+
+    public function addBotWhitelistRule(array $ruleData): bool
+    {
+        try {
+            $stmt = $this->database->prepare('
+                INSERT INTO ' . $this->botWhitelistTable . '
+                (user_agent_pattern, notes, created_by)
+                VALUES (?, ?, ?)
+            ');
+
+            if (!$stmt) return false;
+
+            $stmt->bindValue(1, $ruleData['user_agent_pattern'], SQLITE3_TEXT);
+            $stmt->bindValue(2, $ruleData['notes'] ?? '', SQLITE3_TEXT);
+            $stmt->bindValue(3, $ruleData['created_by'] ?? null, SQLITE3_INTEGER);
+
+            $result = $stmt->execute();
+            $stmt->close();
+
+            return $result !== false;
+        } catch (Exception $e) {
+            error_log('MS Logger Error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    public function getBotWhitelistRules(): array
+    {
+        try {
+            $result = $this->database->query('SELECT * FROM ' . $this->botWhitelistTable . ' ORDER BY created_at DESC');
+            $rules = [];
+            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+                $rules[] = $row;
+            }
+            return $rules;
+        } catch (Exception $e) {
+            error_log('MS Logger Error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function removeBotWhitelistRule(int $ruleId): bool
+    {
+        try {
+            $stmt = $this->database->prepare('DELETE FROM ' . $this->botWhitelistTable . ' WHERE id = ?');
+            if (!$stmt) return false;
+
+            $stmt->bindValue(1, $ruleId, SQLITE3_INTEGER);
+            $stmt->execute();
+
+            $changes = $this->database->changes();
+            $stmt->close();
+
+            return $changes > 0;
+        } catch (Exception $e) {
+            error_log('MS Logger Error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
     private function createIndexes(): void
     {
         $indexes = [
@@ -400,7 +476,8 @@ class LoggerSQLite
             'CREATE INDEX IF NOT EXISTS idx_events_severity ON ' . $this->tableName . ' (severity)',
             'CREATE INDEX IF NOT EXISTS idx_rules_ip ON ' . $this->ipRulesTable . ' (ip_address)',
             'CREATE INDEX IF NOT EXISTS idx_rules_type ON ' . $this->ipRulesTable . ' (rule_type)',
-            'CREATE INDEX IF NOT EXISTS idx_rules_active ON ' . $this->ipRulesTable . ' (is_active)'
+            'CREATE INDEX IF NOT EXISTS idx_rules_active ON ' . $this->ipRulesTable . ' (is_active)',
+            'CREATE INDEX IF NOT EXISTS idx_bot_whitelist_ua ON ' . $this->botWhitelistTable . ' (user_agent_pattern)'
         ];
 
         foreach ($indexes as $index) {
@@ -416,12 +493,12 @@ class LoggerSQLite
     }
     public function getEventsByIP(string $ipAddress, int $limit = 50): array {
     try {
-        $stmt = $this->database->prepare('
+        $stmt = $this->database->prepare("
             SELECT * FROM ' . $this->tableName . '
             WHERE ip_address = ?
             ORDER BY timestamp DESC
             LIMIT ?
-        ');
+        ");
 
         if (!$stmt) {
             return [];
@@ -445,4 +522,119 @@ class LoggerSQLite
         return [];
     }
 }
+
+    public function getBotDetectionTrends(): array
+    {
+        try {
+            $stmt = $this->database->prepare("
+                SELECT
+                    strftime('%Y-%m-%d', timestamp, 'unixepoch') as date,
+                    COUNT(*) as count
+                FROM ' . $this->tableName . '
+                WHERE event_type LIKE '%bot%'
+                AND timestamp >= ?
+                GROUP BY date
+                ORDER BY date ASC
+            ");
+
+            if (!$stmt) return [];
+
+            $stmt->bindValue(1, time() - (30 * 86400), SQLITE3_INTEGER);
+            $result = $stmt->execute();
+            $trends = [];
+
+            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+                $trends[$row['date']] = $row['count'];
+            }
+
+            $stmt->close();
+            return $trends;
+        } catch (Exception $e) {
+            error_log('MS Logger Error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function getBotTypesDistribution(): array
+    {
+        try {
+            $stmt = $this->database->prepare("
+                SELECT
+                    json_extract(context, '$.type') as bot_type,
+                    COUNT(*) as count
+                FROM ' . $this->tableName . '
+                WHERE event_type LIKE "%bot%"
+                GROUP BY bot_type
+            ");
+
+            if (!$stmt) return [];
+
+            $result = $stmt->execute();
+            $types = [];
+
+            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+                $types[$row['bot_type']] = $row['count'];
+            }
+
+            $stmt->close();
+            return $types;
+        } catch (Exception $e) {
+            error_log('MS Logger Error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    public function getBotDetectionStats(): array
+    {
+        $trends = [];
+        $types = [];
+
+        // Get bot detection trends for the last 24 hours, grouped by hour
+        $twentyFourHoursAgo = time() - (24 * 3600);
+        $query = "SELECT
+                        strftime('%H', timestamp, 'unixepoch') as hour,
+                        COUNT(*) as count
+                    FROM " . $this->tableName . "
+                    WHERE event_type LIKE '%bot%' AND timestamp >= :start_time
+                    GROUP BY hour
+                    ORDER BY hour ASC";
+
+        $stmt = $this->database->prepare($query);
+        $stmt->bindValue(':start_time', $twentyFourHoursAgo, SQLITE3_INTEGER);
+        $result = $stmt->execute();
+
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            $trends[$row['hour']] = $row['count'];
+        }
+        $stmt->close();
+
+        // Ensure all 24 hours are present, even if no data
+        for ($i = 0; $i < 24; $i++) {
+            $hour = str_pad($i, 2, '0', STR_PAD_LEFT);
+            if (!isset($trends[$hour])) {
+                $trends[$hour] = 0;
+            }
+        }
+        ksort($trends);
+
+        // Get bot types distribution
+        $query = "SELECT
+                        json_extract(context, '$.type') as bot_type,
+                        COUNT(*) as count
+                    FROM " . $this->tableName . "
+                    WHERE event_type LIKE '%bot%'
+                    GROUP BY bot_type
+                    ORDER BY count DESC";
+
+        $result = $this->database->query($query);
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            $type = $row['bot_type'] ?? 'unknown';
+            $types[$type] = $row['count'];
+        }
+
+        return [
+            'trends' => $trends,
+            'types' => $types
+        ];
+    }
 }

@@ -128,7 +128,9 @@ class Autoloader
             'MordenSecurity\\Core\\BotDetection',
             'MordenSecurity\\Core\\Firewall',
             'MordenSecurity\\Utils\\IPUtils',
-            'MordenSecurity\\Utils\\Validation'
+            'MordenSecurity\\Utils\\Validation',
+            'MordenSecurity\\API\\RestAPI',
+            'MordenSecurity\\API\\Endpoints\\BotDetectionEndpoint'
         ];
 
         foreach ($criticalClasses as $class) {

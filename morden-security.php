@@ -47,6 +47,7 @@ use MordenSecurity\Utils\IPUtils;
 use MordenSecurity\Utils\GitHubUpdater;
 use MordenSecurity\Modules\IPManagement\IPBlocker;
 use MordenSecurity\Admin\AdminController;
+use MordenSecurity\API\RestAPI;
 
 class MordenSecurityPlugin
 {
@@ -55,6 +56,7 @@ class MordenSecurityPlugin
     private ?SecurityCore $securityCore = null;
     private ?AdminController $adminController = null;
     private ?GitHubUpdater $githubUpdater = null;
+    private ?RestAPI $restApi = null;
 
     public static function getInstance(): MordenSecurityPlugin
     {
@@ -94,6 +96,7 @@ class MordenSecurityPlugin
             $this->securityCore->initialize();
 
             $this->githubUpdater = new GitHubUpdater();
+            $this->restApi = new RestAPI();
 
             if (is_admin()) {
                 $this->adminController = new AdminController();

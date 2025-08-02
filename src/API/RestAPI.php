@@ -2,9 +2,12 @@
 
 namespace MordenSecurity\API;
 
+use MordenSecurity\API\Endpoints\BotDetectionEndpoint;
+use MordenSecurity\Core\SecurityCore;
 use MordenSecurity\Core\LoggerSQLite;
-use MordenSecurity\Core\AutoIPBlocker;
 use MordenSecurity\Utils\IPUtils;
+use MordenSecurity\Utils\Validation;
+use MordenSecurity\Core\AutoIPBlocker;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -14,18 +17,21 @@ class RestAPI
 {
     private LoggerSQLite $logger;
     private AutoIPBlocker $autoBlocker;
+    private BotDetectionEndpoint $botDetectionEndpoint;
     private string $namespace = 'morden-security/v1';
 
     public function __construct()
     {
         $this->logger = new LoggerSQLite();
         $this->autoBlocker = new AutoIPBlocker($this->logger);
+        $this->botDetectionEndpoint = new BotDetectionEndpoint(new SecurityCore());
         $this->registerRoutes();
     }
 
     public function registerRoutes(): void
     {
         add_action('rest_api_init', [$this, 'registerEndpoints']);
+        $this->botDetectionEndpoint->register_routes();
     }
 
     public function registerEndpoints(): void

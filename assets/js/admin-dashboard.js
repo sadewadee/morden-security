@@ -181,6 +181,19 @@
             }, 30000);
         },
 
+        initializeCharts() {
+            if ($('#botTrendsChart').length) {
+                this.renderBotTrendsChart();
+            }
+            if ($('#botTypesChart').length) {
+                this.renderBotTypesChart();
+            }
+        },
+
+        renderBotTrendsChart() {
+            // Placeholder for chart rendering logic
+        },
+
         loadIPDetails(ipAddress, modal) {
             $.ajax({
                 url: msAdmin.ajaxUrl,

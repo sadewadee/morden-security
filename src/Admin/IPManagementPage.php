@@ -3,6 +3,7 @@
 namespace MordenSecurity\Admin;
 
 use MordenSecurity\Core\LoggerSQLite;
+use MordenSecurity\Modules\IPManagement\IPBlocker;
 use MordenSecurity\Utils\IPUtils;
 
 if (!defined('ABSPATH')) {
@@ -12,14 +13,18 @@ if (!defined('ABSPATH')) {
 class IPManagementPage
 {
     private LoggerSQLite $logger;
+    private IPBlocker $ipBlocker;
 
     public function __construct(LoggerSQLite $logger)
     {
         $this->logger = $logger;
+        $this->ipBlocker = new IPBlocker($logger);
     }
 
     public function render(): void
     {
+        $this->handleFormSubmission();
+
         $activeTab = sanitize_key($_GET['tab'] ?? 'blocked');
         $blockedIPs = $this->getBlockedIPs();
         $whitelistedIPs = $this->getWhitelistedIPs();
@@ -60,6 +65,38 @@ class IPManagementPage
             </div>
         </div>
         <?php
+    }
+
+    private function handleFormSubmission(): void
+    {
+        if (!isset($_POST['ms_ip_rule_nonce']) || !wp_verify_nonce($_POST['ms_ip_rule_nonce'], 'ms_add_ip_rule')) {
+            return;
+        }
+
+        $ipAddress = sanitize_text_field($_POST['ip_address'] ?? '');
+        $ruleType = sanitize_key($_POST['rule_type'] ?? 'blacklist');
+        $duration = sanitize_key($_POST['block_duration'] ?? 'temporary');
+        $reason = sanitize_text_field($_POST['reason'] ?? 'Manual rule');
+        $notes = sanitize_textarea_field($_POST['notes'] ?? '');
+
+        if (!IPUtils::isValidIP($ipAddress)) {
+            // Handle invalid IP address error
+            return;
+        }
+
+        $data = [
+            'rule_type' => $ruleType,
+            'duration' => $duration,
+            'reason' => $reason,
+            'notes' => $notes,
+            'source' => 'manual'
+        ];
+
+        if ($ruleType === 'blacklist') {
+            $this->ipBlocker->addBlock($ipAddress, $data);
+        } elseif ($ruleType === 'whitelist') {
+            $this->ipBlocker->addWhitelist($ipAddress, $data);
+        }
     }
 
     private function renderBlockedIPsTab(array $blockedIPs): void
@@ -297,7 +334,7 @@ class IPManagementPage
         try {
             $stmt = $this->logger->database->prepare('
                 SELECT * FROM ms_ip_rules
-                WHERE rule_type = "whitelist"
+                WHERE rule_type IN ("whitelist", "temp_whitelist")
                   AND is_active = 1
                 ORDER BY created_at DESC
             ');

@@ -25,7 +25,7 @@ class CountryManagementPage
         $activeTab = sanitize_key($_GET['tab'] ?? 'overview');
         $statistics = $this->countryBlocker->getCountryStatistics();
         $blockedCountries = $this->countryBlocker->getBlockedCountries();
-        $highRiskCountries = $this->countryBlocker->getHighRiskCountries();
+        $topThreatCountries = $statistics['top_threats'];
 
         ?>
         <div class="wrap">
@@ -49,7 +49,7 @@ class CountryManagementPage
                         $this->renderOverviewTab($statistics);
                         break;
                     case 'blocked':
-                        $this->renderBlockedCountriesTab($blockedCountries, $highRiskCountries);
+                        $this->renderBlockedCountriesTab($blockedCountries, $topThreatCountries);
                         break;
                 }
                 ?>
@@ -85,56 +85,58 @@ class CountryManagementPage
 
             <div class="ms-country-breakdown">
                 <h3><?php _e('Traffic by Country', 'morden-security'); ?></h3>
-                <table class="wp-list-table widefat fixed striped">
-                    <thead>
-                        <tr>
-                            <th><?php _e('Country', 'morden-security'); ?></th>
-                            <th><?php _e('Total Requests', 'morden-security'); ?></th>
-                            <th><?php _e('Blocked Requests', 'morden-security'); ?></th>
-                            <th><?php _e('Block Rate', 'morden-security'); ?></th>
-                            <th><?php _e('Threat Score', 'morden-security'); ?></th>
-                            <th><?php _e('Actions', 'morden-security'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($statistics['country_breakdown'] as $country): ?>
-                        <tr>
-                            <td>
-                                <span class="ms-country-flag"><?php echo $this->getCountryFlag($country['code']); ?></span>
-                                <strong><?php echo esc_html($country['name']); ?></strong>
-                                <span class="ms-country-code">(<?php echo esc_html($country['code']); ?>)</span>
-                            </td>
-                            <td><?php echo number_format($country['total_requests']); ?></td>
-                            <td><?php echo number_format($country['blocked_requests']); ?></td>
-                            <td>
-                                <?php
-                                $blockRate = $country['total_requests'] > 0 ?
-                                    ($country['blocked_requests'] / $country['total_requests']) * 100 : 0;
-                                echo number_format($blockRate, 1) . '%';
-                                ?>
-                            </td>
-                            <td>
-                                <span class="ms-threat-score ms-score-<?php echo $this->getThreatScoreClass($country['threat_score']); ?>">
-                                    <?php echo number_format($country['threat_score']); ?>
-                                </span>
-                            </td>
-                            <td>
-                                <?php if (!in_array($country['code'], array_column($statistics['blocked_countries'], 'code'))): ?>
-                                    <button class="button button-small ms-block-country"
-                                            data-country="<?php echo esc_attr($country['code']); ?>">
-                                        <?php _e('Block', 'morden-security'); ?>
-                                    </button>
-                                <?php else: ?>
-                                    <button class="button button-small ms-unblock-country"
-                                            data-country="<?php echo esc_attr($country['code']); ?>">
-                                        <?php _e('Unblock', 'morden-security'); ?>
-                                    </button>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+                <div class="ms-table-container">
+                    <table class="wp-list-table widefat fixed striped">
+                        <thead>
+                            <tr>
+                                <th><?php _e('Country', 'morden-security'); ?></th>
+                                <th><?php _e('Total Requests', 'morden-security'); ?></th>
+                                <th><?php _e('Blocked Requests', 'morden-security'); ?></th>
+                                <th><?php _e('Block Rate', 'morden-security'); ?></th>
+                                <th><?php _e('Threat Score', 'morden-security'); ?></th>
+                                <th><?php _e('Actions', 'morden-security'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($statistics['country_breakdown'] as $country): ?>
+                            <tr>
+                                <td>
+                                    <span class="ms-country-flag"><?php echo $this->getCountryFlag($country['code']); ?></span>
+                                    <strong><?php echo esc_html($country['name']); ?></strong>
+                                    <span class="ms-country-code">(<?php echo esc_html($country['code']); ?>)</span>
+                                </td>
+                                <td><?php echo number_format($country['total_requests']); ?></td>
+                                <td><?php echo number_format($country['blocked_requests']); ?></td>
+                                <td>
+                                    <?php
+                                    $blockRate = $country['total_requests'] > 0 ?
+                                        ($country['blocked_requests'] / $country['total_requests']) * 100 : 0;
+                                    echo number_format($blockRate, 1) . '%';
+                                    ?>
+                                </td>
+                                <td>
+                                    <span class="ms-threat-score ms-score-<?php echo $this->getThreatScoreClass($country['threat_score']); ?>">
+                                        <?php echo number_format($country['threat_score']); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <?php if (!in_array($country['code'], array_column($statistics['blocked_countries'], 'code'))): ?>
+                                        <button class="button button-small ms-block-country"
+                                                data-country="<?php echo esc_attr($country['code']); ?>">
+                                            <?php _e('Block', 'morden-security'); ?>
+                                        </button>
+                                    <?php else: ?>
+                                        <button class="button button-small ms-unblock-country"
+                                                data-country="<?php echo esc_attr($country['code']); ?>">
+                                            <?php _e('Unblock', 'morden-security'); ?>
+                                        </button>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
         <?php
@@ -144,32 +146,6 @@ class CountryManagementPage
     {
         ?>
         <div class="ms-blocked-countries">
-            <div class="ms-add-country-block">
-                <h3><?php _e('Block Country', 'morden-security'); ?></h3>
-                <form method="post" class="ms-country-block-form">
-                    <?php wp_nonce_field('ms_block_country', 'ms_country_nonce'); ?>
-
-                    <div class="ms-form-row">
-                        <label for="country_code"><?php _e('Country Code', 'morden-security'); ?></label>
-                        <select id="country_code" name="country_code" required>
-                            <option value=""><?php _e('Select Country', 'morden-security'); ?></option>
-                            <?php foreach ($highRiskCountries as $country): ?>
-                                <option value="<?php echo esc_attr($country['code']); ?>">
-                                    <?php echo esc_html($country['name']); ?> (<?php echo esc_html($country['code']); ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="ms-form-row">
-                        <label for="block_reason"><?php _e('Reason', 'morden-security'); ?></label>
-                        <input type="text" id="block_reason" name="block_reason"
-                               placeholder="<?php _e('Reason for blocking this country', 'morden-security'); ?>" required>
-                    </div>
-
-                    <?php submit_button(__('Block Country', 'morden-security')); ?>
-                </form>
-            </div>
 
             <div class="ms-current-blocks">
                 <h3><?php _e('Currently Blocked Countries', 'morden-security'); ?></h3>
