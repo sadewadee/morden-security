@@ -8,7 +8,9 @@ use MordenSecurity\Modules\WAF\RulesetManager;
 use MordenSecurity\Core\LoggerSQLite;
 use MordenSecurity\Core\BotDetection;
 use MordenSecurity\Core\Firewall;
+use MordenSecurity\Core\GeoDetection;
 use MordenSecurity\Modules\IPManagement\BlockingEngine;
+use MordenSecurity\Modules\Login\LoginProtection;
 use MordenSecurity\Utils\IPUtils;
 
 if (!defined('ABSPATH')) {
@@ -21,10 +23,13 @@ class SecurityCore {
     private $firewall;
     private $botDetection;
     private $autoIPBlocker;
+    private $geoDetection;
+    private $loginProtection;
     private $initialized = false;
 
     public function __construct() {
         $this->logger = new LoggerSQLite();
+        $this->geoDetection = new GeoDetection();
 
         // Initialize WAF components
         $rulesetManager = new RulesetManager($this->logger);
@@ -35,6 +40,7 @@ class SecurityCore {
         $this->firewall = new Firewall($this->logger, $this->wafEngine);
         $this->botDetection = new BotDetection($this->logger);
         $this->blockingEngine = new BlockingEngine($this->logger);
+        $this->loginProtection = new LoginProtection($this->logger);
     }
 
     public function getSecurityStatus(): array
@@ -62,6 +68,7 @@ class SecurityCore {
         }
 
         add_action('init', [$this, 'earlySecurityChecks'], 1);
+        add_action('rest_api_init', [$this, 'interceptRequest'], 1);
         add_action('template_redirect', [$this, 'interceptRequest'], 1);
 
         $this->initialized = true;
@@ -74,29 +81,33 @@ class SecurityCore {
 
         $ipAddress = IPUtils::getRealClientIP();
 
-        // Admin whitelist check
+        $firewallResult = $this->firewall->checkRequest();
+        if ($firewallResult['action'] === 'block') {
+            $this->logSecurityEvent(
+                $firewallResult['event_type'] ?? 'waf_blocked',
+                $ipAddress,
+                $firewallResult
+            );
+            $this->blockRequest('Access Denied - Security Rule Violation');
+            return $firewallResult;
+        }
+
         if ($this->isLoggedInAdmin()) {
             $this->ensureAdminWhitelisted($ipAddress);
             return null;
         }
 
-        // Bot detection
         $botAnalysis = $this->botDetection->analyzeRequest();
         if ($botAnalysis['is_bot'] && $botAnalysis['action'] === 'block') {
-            $this->logSecurityEvent('malicious_bot_blocked', $ipAddress, $botAnalysis);
+            $this->logSecurityEvent(
+                $botAnalysis['event_type'] ?? 'bad_bot_detected',
+                $ipAddress,
+                $botAnalysis
+            );
             $this->blockRequest('Access Denied - Malicious Bot Detected');
             return $botAnalysis;
         }
 
-        // WAF/Firewall check (now unified)
-        $firewallResult = $this->firewall->checkRequest();
-        if ($firewallResult['action'] === 'block') {
-            $this->logSecurityEvent('waf_blocked', $ipAddress, $firewallResult);
-            $this->blockRequest('Access Denied - Security Rule Violation');
-            return $firewallResult;
-        }
-
-        // Auto IP blocking check
         $ipCheck = $this->blockingEngine->evaluateRequest($ipAddress);
         if ($ipCheck['action'] === 'block') {
             $this->logSecurityEvent('ip_blocked', $ipAddress, $ipCheck);
@@ -104,15 +115,21 @@ class SecurityCore {
             return $ipCheck;
         }
 
+        $this->logRequest($ipAddress);
         return null;
     }
+
+    private function logRequest(string $ipAddress): void
+    {
+        $this->logSecurityEvent('traffic', $ipAddress, ['action' => 'log', 'severity' => 1, 'impact' => 0], 200);
+    }
+
     public function earlySecurityChecks(): void
     {
         $this->preventDirectAccess();
         $this->checkMaintenanceMode();
     }
 
-    // PRIVATE HELPER METHODS FOR getSecurityStatus()
     private function determineOverallStatus(array $stats): string
     {
         $threatLevel = $stats['threat_level'] ?? 'low';
@@ -210,15 +227,26 @@ class SecurityCore {
         }
     }
 
-    private function logSecurityEvent(string $eventType, string $ipAddress, array $context): void
+    private function logSecurityEvent(string $eventType, string $ipAddress, array $context, int $httpCode = 403): void
     {
+        $context['request_method'] = $_SERVER['REQUEST_METHOD'] ?? 'N/A';
+        $context['http_code'] = $httpCode;
+        $currentUser = wp_get_current_user();
+        if ($currentUser->ID !== 0) {
+            $context['username'] = $currentUser->user_login;
+        }
+
         $this->logger->logSecurityEvent([
             'event_type' => $eventType,
-            'severity' => 3,
+            'severity' => $context['severity'] ?? 3,
             'ip_address' => $ipAddress,
-            'message' => "Security event: {$eventType}",
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'request_uri' => $_SERVER['REQUEST_URI'] ?? '',
+            'message' => $context['reason'] ?? "Security event: {$eventType}",
             'context' => $context,
-            'action_taken' => 'blocked'
+            'action_taken' => $context['action'] ?? 'blocked',
+            'country_code' => $this->geoDetection->getLocationData($ipAddress)['country_code'],
+            'threat_score' => $context['impact'] ?? 0,
         ]);
     }
 

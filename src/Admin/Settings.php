@@ -23,35 +23,35 @@ class Settings
 
             <nav class="nav-tab-wrapper">
                 <a href="?page=morden-security-settings&tab=general"
-                   class="nav-tab <?php echo $activeTab === 'general' ? 'nav-tab-active' : ''; ?>">
+                   class="nav-tab <?php echo $activeTab === 'general' ? 'nav-tab-active' : ''; ">
                     <?php _e('General', 'morden-security'); ?>
                 </a>
                 <a href="?page=morden-security-settings&tab=firewall"
-                   class="nav-tab <?php echo $activeTab === 'firewall' ? 'nav-tab-active' : ''; ?>">
+                   class="nav-tab <?php echo $activeTab === 'firewall' ? 'nav-tab-active' : ''; ">
                     <?php _e('Firewall', 'morden-security'); ?>
                 </a>
                 <a href="?page=morden-security-settings&tab=bots"
-                   class="nav-tab <?php echo $activeTab === 'bots' ? 'nav-tab-active' : ''; ?>">
+                   class="nav-tab <?php echo $activeTab === 'bots' ? 'nav-tab-active' : ''; ">
                     <?php _e('Bot Protection', 'morden-security'); ?>
                 </a>
                 <a href="?page=morden-security-settings&tab=ip"
-                   class="nav-tab <?php echo $activeTab === 'ip' ? 'nav-tab-active' : ''; ?>">
+                   class="nav-tab <?php echo $activeTab === 'ip' ? 'nav-tab-active' : ''; ">
                     <?php _e('IP Management', 'morden-security'); ?>
                 </a>
                 <a href="?page=morden-security-settings&tab=countries"
-                   class="nav-tab <?php echo $activeTab === 'countries' ? 'nav-tab-active' : ''; ?>">
+                   class="nav-tab <?php echo $activeTab === 'countries' ? 'nav-tab-active' : ''; ">
                     <?php _e('Country Blocking', 'morden-security'); ?>
                 </a>
                 <a href="?page=morden-security-settings&tab=login"
-                   class="nav-tab <?php echo $activeTab === 'login' ? 'nav-tab-active' : ''; ?>">
+                   class="nav-tab <?php echo $activeTab === 'login' ? 'nav-tab-active' : ''; ">
                     <?php _e('Login Protection', 'morden-security'); ?>
                 </a>
                 <a href="?page=morden-security-settings&tab=performance"
-                   class="nav-tab <?php echo $activeTab === 'performance' ? 'nav-tab-active' : ''; ?>">
+                   class="nav-tab <?php echo $activeTab === 'performance' ? 'nav-tab-active' : ''; ">
                     <?php _e('Performance', 'morden-security'); ?>
                 </a>
                 <a href="?page=morden-security-settings&tab=advanced"
-                   class="nav-tab <?php echo $activeTab === 'advanced' ? 'nav-tab-active' : ''; ?>">
+                   class="nav-tab <?php echo $activeTab === 'advanced' ? 'nav-tab-active' : ''; ">
                     <?php _e('Advanced', 'morden-security'); ?>
                 </a>
             </nav>
@@ -133,6 +133,7 @@ class Settings
         register_setting('morden-security-advanced', 'ms_maintenance_mode');
         register_setting('morden-security-advanced', 'ms_webhook_enabled');
         register_setting('morden-security-advanced', 'ms_api_access_enabled');
+        register_setting('morden-security-advanced', 'ms_delete_data_on_uninstall');
     }
 
     private function renderGeneralTab(): void
@@ -506,6 +507,14 @@ class Settings
                     <td>
                         <input type="checkbox" name="ms_api_access_enabled" value="1"
                                <?php checked(get_option('ms_api_access_enabled', false)); ?> />
+                    </td>
+                </tr>
+                <tr style="color: red;">
+                    <th scope="row" style="color: red;"><?php _e('Remove Data on Uninstall', 'morden-security'); ?></th>
+                    <td>
+                        <input type="checkbox" name="ms_delete_data_on_uninstall" value="1"
+                               <?php checked(get_option('ms_delete_data_on_uninstall'), 1); ?> />
+                        <p class="description" style="color: red;"><?php _e('If checked, all Morden Security data (logs, settings, IP rules) will be permanently deleted when the plugin is uninstalled. This action cannot be undone.', 'morden-security'); ?></p>
                     </td>
                 </tr>
             </table>

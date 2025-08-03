@@ -15,13 +15,34 @@ class LoggerSQLite
     private string $tableName = 'ms_security_events';
     private string $ipRulesTable = 'ms_ip_rules';
     private string $botWhitelistTable = 'ms_bot_whitelist';
+    private string $wafRulesTable = 'ms_waf_rules';
+    private string $failedAttemptsTable = 'ms_failed_attempts';
     private string $dbPath;
 
     public function __construct()
     {
         $this->dbPath = MS_LOGS_DIR . 'security.db';
         $this->initializeDatabase();
+        $this->migrateDatabaseSchema();
         $this->createTables();
+    }
+
+    private function migrateDatabaseSchema(): void
+    {
+        $this->addColumnIfNotExists($this->tableName, 'waf_rule_id', 'INTEGER');
+    }
+
+    private function addColumnIfNotExists(string $tableName, string $columnName, string $columnType): void
+    {
+        $result = $this->database->query("PRAGMA table_info({$tableName})");
+        $columns = [];
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            $columns[] = $row['name'];
+        }
+
+        if (!in_array($columnName, $columns)) {
+            $this->database->exec("ALTER TABLE {$tableName} ADD COLUMN {$columnName} {$columnType}");
+        }
     }
 
     public function logSecurityEvent(array $eventData): bool
@@ -29,8 +50,8 @@ class LoggerSQLite
         try {
             $stmt = $this->database->prepare('
                 INSERT INTO ' . $this->tableName . '
-                (event_type, severity, ip_address, user_agent, request_uri, message, context, action_taken, country_code, threat_score, timestamp)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (event_type, severity, ip_address, user_agent, request_uri, message, context, action_taken, country_code, threat_score, timestamp, waf_rule_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ');
 
             if (!$stmt) {
@@ -51,6 +72,7 @@ class LoggerSQLite
             $stmt->bindValue(9, $eventData['country_code'] ?? '', SQLITE3_TEXT);
             $stmt->bindValue(10, $eventData['threat_score'] ?? 0, SQLITE3_INTEGER);
             $stmt->bindValue(11, $timestamp, SQLITE3_INTEGER);
+            $stmt->bindValue(12, $eventData['waf_rule_id'] ?? null, SQLITE3_INTEGER);
 
             $result = $stmt->execute();
             $stmt->close();
@@ -65,44 +87,49 @@ class LoggerSQLite
     public function getRecentEvents(int $limit = 100, array $filters = []): array
     {
         try {
-            $query = 'SELECT * FROM ' . $this->tableName . ' WHERE 1=1';
+            $query = '
+                SELECT
+                    events.*,
+                    rules.name as rule_name,
+                    rules.description as rule_description,
+                    rules.rule_id as rule_identifier
+                FROM ' . $this->tableName . ' AS events
+                LEFT JOIN ' . $this->wafRulesTable . ' AS rules ON events.waf_rule_id = rules.id
+                WHERE 1=1
+            ';
+
             $params = [];
-            $paramIndex = 1;
 
             if (!empty($filters['event_type'])) {
-                $query .= ' AND event_type = ?';
-                $params[$paramIndex] = $filters['event_type'];
-                $paramIndex++;
+                $query .= ' AND events.event_type = :event_type';
+                $params[':event_type'] = $filters['event_type'];
             }
 
             if (!empty($filters['ip_address'])) {
-                $query .= ' AND ip_address = ?';
-                $params[$paramIndex] = $filters['ip_address'];
-                $paramIndex++;
+                $query .= ' AND events.ip_address = :ip_address';
+                $params[':ip_address'] = $filters['ip_address'];
             }
 
             if (!empty($filters['severity'])) {
-                $query .= ' AND severity >= ?';
-                $params[$paramIndex] = $filters['severity'];
-                $paramIndex++;
+                $query .= ' AND events.severity >= :severity';
+                $params[':severity'] = $filters['severity'];
             }
 
             if (!empty($filters['since'])) {
-                $query .= ' AND timestamp >= ?';
-                $params[$paramIndex] = $filters['since'];
-                $paramIndex++;
+                $query .= ' AND events.timestamp >= :since';
+                $params[':since'] = $filters['since'];
             }
 
-            $query .= ' ORDER BY timestamp DESC LIMIT ?';
-            $params[$paramIndex] = $limit;
+            $query .= ' ORDER BY events.timestamp DESC LIMIT :limit';
+            $params[':limit'] = $limit;
 
             $stmt = $this->database->prepare($query);
             if (!$stmt) {
                 return [];
             }
 
-            foreach ($params as $index => $value) {
-                $stmt->bindValue($index, $value, is_int($value) ? SQLITE3_INTEGER : SQLITE3_TEXT);
+            foreach ($params as $key => $value) {
+                $stmt->bindValue($key, $value, is_int($value) ? SQLITE3_INTEGER : SQLITE3_TEXT);
             }
 
             $result = $stmt->execute();
@@ -343,6 +370,8 @@ class LoggerSQLite
         $this->createSecurityEventsTable();
         $this->createIPRulesTable();
         $this->createBotWhitelistTable();
+        $this->createWafRulesTable();
+        $this->createFailedAttemptsTable();
         $this->createIndexes();
     }
 
@@ -362,7 +391,9 @@ class LoggerSQLite
                 country_code TEXT,
                 threat_score INTEGER DEFAULT 0,
                 timestamp INTEGER NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                waf_rule_id INTEGER,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (waf_rule_id) REFERENCES ' . $this->wafRulesTable . '(id) ON DELETE SET NULL
             )
         ';
 
@@ -406,6 +437,67 @@ class LoggerSQLite
         ';
 
         $this->database->exec($sql);
+    }
+
+    private function createWafRulesTable(): void
+    {
+        $sql = '
+            CREATE TABLE IF NOT EXISTS ' . $this->wafRulesTable . ' (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_id TEXT NOT NULL UNIQUE,
+                ruleset_name TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                pattern TEXT NOT NULL,
+                threat_score INTEGER DEFAULT 1,
+                is_active INTEGER DEFAULT 1,
+                is_custom INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ';
+        $this->database->exec($sql);
+    }
+
+    private function createFailedAttemptsTable(): void
+    {
+        $sql = '
+            CREATE TABLE IF NOT EXISTS ' . $this->failedAttemptsTable . ' (
+                ip TEXT NOT NULL PRIMARY KEY,
+                attempts INTEGER NOT NULL DEFAULT 1,
+                last_attempt INTEGER NOT NULL
+            )
+        ';
+        $this->database->exec($sql);
+    }
+
+    public function recordFailedAttempt(string $ip): void
+    {
+        $stmt = $this->database->prepare('
+            INSERT INTO ' . $this->failedAttemptsTable . ' (ip, last_attempt, attempts)
+            VALUES (:ip, :last_attempt, 1)
+            ON CONFLICT(ip) DO UPDATE SET
+            attempts = attempts + 1,
+            last_attempt = :last_attempt
+        ');
+        $stmt->bindValue(':ip', $ip, SQLITE3_TEXT);
+        $stmt->bindValue(':last_attempt', time(), SQLITE3_INTEGER);
+        $stmt->execute();
+    }
+
+    public function getFailedAttempts(string $ip): ?array
+    {
+        $stmt = $this->database->prepare('SELECT * FROM ' . $this->failedAttemptsTable . ' WHERE ip = :ip');
+        $stmt->bindValue(':ip', $ip, SQLITE3_TEXT);
+        $result = $stmt->execute();
+        return $result->fetchArray(SQLITE3_ASSOC) ?: null;
+    }
+
+    public function clearFailedAttempts(string $ip): void
+    {
+        $stmt = $this->database->prepare('DELETE FROM ' . $this->failedAttemptsTable . ' WHERE ip = :ip');
+        $stmt->bindValue(':ip', $ip, SQLITE3_TEXT);
+        $stmt->execute();
     }
 
     public function addBotWhitelistRule(array $ruleData): bool
@@ -474,10 +566,14 @@ class LoggerSQLite
             'CREATE INDEX IF NOT EXISTS idx_events_type ON ' . $this->tableName . ' (event_type)',
             'CREATE INDEX IF NOT EXISTS idx_events_timestamp ON ' . $this->tableName . ' (timestamp)',
             'CREATE INDEX IF NOT EXISTS idx_events_severity ON ' . $this->tableName . ' (severity)',
+            'CREATE INDEX IF NOT EXISTS idx_events_waf_rule_id ON ' . $this->tableName . ' (waf_rule_id)',
             'CREATE INDEX IF NOT EXISTS idx_rules_ip ON ' . $this->ipRulesTable . ' (ip_address)',
             'CREATE INDEX IF NOT EXISTS idx_rules_type ON ' . $this->ipRulesTable . ' (rule_type)',
             'CREATE INDEX IF NOT EXISTS idx_rules_active ON ' . $this->ipRulesTable . ' (is_active)',
-            'CREATE INDEX IF NOT EXISTS idx_bot_whitelist_ua ON ' . $this->botWhitelistTable . ' (user_agent_pattern)'
+            'CREATE INDEX IF NOT EXISTS idx_bot_whitelist_ua ON ' . $this->botWhitelistTable . ' (user_agent_pattern)',
+            'CREATE INDEX IF NOT EXISTS idx_waf_rules_rule_id ON ' . $this->wafRulesTable . ' (rule_id)',
+            'CREATE INDEX IF NOT EXISTS idx_waf_rules_is_active ON ' . $this->wafRulesTable . ' (is_active)',
+            'CREATE INDEX IF NOT EXISTS idx_failed_attempts_ip ON ' . $this->failedAttemptsTable . ' (ip)'
         ];
 
         foreach ($indexes as $index) {
@@ -494,7 +590,7 @@ class LoggerSQLite
     public function getEventsByIP(string $ipAddress, int $limit = 50): array {
     try {
         $stmt = $this->database->prepare("
-            SELECT * FROM ' . $this->tableName . '
+            SELECT * FROM {$this->tableName}
             WHERE ip_address = ?
             ORDER BY timestamp DESC
             LIMIT ?
@@ -530,7 +626,7 @@ class LoggerSQLite
                 SELECT
                     strftime('%Y-%m-%d', timestamp, 'unixepoch') as date,
                     COUNT(*) as count
-                FROM ' . $this->tableName . '
+                FROM {$this->tableName}
                 WHERE event_type LIKE '%bot%'
                 AND timestamp >= ?
                 GROUP BY date
@@ -562,8 +658,8 @@ class LoggerSQLite
                 SELECT
                     json_extract(context, '$.type') as bot_type,
                     COUNT(*) as count
-                FROM ' . $this->tableName . '
-                WHERE event_type LIKE "%bot%"
+                FROM {$this->tableName}
+                WHERE event_type LIKE '%bot%'
                 GROUP BY bot_type
             ");
 

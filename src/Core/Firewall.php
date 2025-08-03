@@ -4,20 +4,18 @@ namespace MordenSecurity\Core;
 
 use MordenSecurity\Modules\WAF\WAFRules;
 use MordenSecurity\Utils\IPUtils;
-use MordenSecurity\Core\LoggerSQLite;
 
 class Firewall {
-    private $logger;
-    private $wafEngine;
-    private $config;
+    private LoggerSQLite $logger;
+    private WAFRules $wafEngine;
+    private array $config;
 
-    public function __construct($logger, $wafEngine) {
+    public function __construct(LoggerSQLite $logger, WAFRules $wafEngine) {
         $this->logger = $logger;
         $this->wafEngine = $wafEngine;
         $this->config = [
             'firewall_enabled' => get_option('ms_firewall_enabled', true),
             'threat_threshold' => get_option('ms_threat_threshold', 7),
-            'challenge_threshold' => get_option('ms_challenge_threshold', 5)
         ];
     }
 
@@ -26,19 +24,29 @@ class Firewall {
             return ['action' => 'allow', 'reason' => 'firewall_disabled'];
         }
 
-        // Gunakan WAF engine untuk semua deteksi
         $requestData = $this->gatherRequestData();
-        $wafResult = $this->wafEngine->evaluateRequest($requestData);
+        $violations = $this->wafEngine->evaluateRequest($requestData);
 
-        if (empty($wafResult)) {
+        if (empty($violations)) {
             return ['action' => 'allow', 'reason' => 'no_threats'];
         }
 
-        // Analisis hasil dari WAF
-        $analysis = $this->analyzeThreats($wafResult);
-        $this->logFirewallEvent($analysis);
+        // Ambil pelanggaran dengan skor tertinggi
+        $highestThreat = $violations[0];
 
-        return $analysis;
+        // Jika skor ancaman melebihi ambang batas, blokir permintaan
+        if ($highestThreat['threat_score'] >= $this->config['threat_threshold']) {
+            return [
+                'action' => 'block',
+                'reason' => $highestThreat['message'],
+                'event_type' => $highestThreat['rule_id'], // Gunakan rule_id sebagai event_type
+                'threat_score' => $highestThreat['threat_score'],
+                'waf_rule_id' => $highestThreat['rule_db_id'],
+                'context' => $highestThreat // Teruskan semua detail pelanggaran
+            ];
+        }
+
+        return ['action' => 'allow', 'reason' => 'threat_score_below_threshold'];
     }
 
     private function gatherRequestData(): array {
@@ -53,43 +61,6 @@ class Firewall {
         ];
     }
 
-    private function analyzeThreats(array $violations): array {
-        $highestSeverity = max(array_column($violations, 'severity'));
-        $criticalThreats = array_filter($violations, fn($v) => $v['severity'] >= $this->config['threat_threshold']);
-        $suspiciousThreats = array_filter($violations, fn($v) => $v['severity'] >= $this->config['challenge_threshold']);
-
-        $action = 'allow';
-        $reason = 'low_threat';
-
-        if (!empty($criticalThreats)) {
-            $action = 'block';
-            $reason = $criticalThreats[0]['rule_group'] . '_violation';
-        } elseif (!empty($suspiciousThreats)) {
-            $action = 'challenge';
-            $reason = 'suspicious_activity';
-        }
-
-        return [
-            'action' => $action,
-            'reason' => $reason,
-            'severity' => $highestSeverity,
-            'violations' => $violations,
-            'threat_categories' => $this->categorizeThreats($violations)
-        ];
-    }
-
-    private function categorizeThreats(array $violations): array {
-        $categories = [];
-        foreach ($violations as $violation) {
-            $category = $violation['rule_group'] ?? 'unknown';
-            if (!isset($categories[$category])) {
-                $categories[$category] = 0;
-            }
-            $categories[$category]++;
-        }
-        return $categories;
-    }
-
     private function getSecurityHeaders(): array {
         return [
             'accept' => $_SERVER['HTTP_ACCEPT'] ?? '',
@@ -98,22 +69,5 @@ class Firewall {
             'x_forwarded_for' => $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '',
             'x_real_ip' => $_SERVER['HTTP_X_REAL_IP'] ?? ''
         ];
-    }
-
-    private function logFirewallEvent(array $analysis): void {
-        if ($analysis['action'] !== 'allow') {
-            $this->logger->logSecurityEvent([
-                'event_type' => 'firewall_' . $analysis['action'],
-                'severity' => $analysis['severity'],
-                'ip_address' => IPUtils::getRealClientIP(),
-                'message' => "Firewall {$analysis['action']}: {$analysis['reason']}",
-                'context' => [
-                    'violations' => $analysis['violations'],
-                    'threat_categories' => $analysis['threat_categories']
-                ],
-                'action_taken' => $analysis['action'],
-                'threat_score' => $analysis['severity']
-            ]);
-        }
     }
 }

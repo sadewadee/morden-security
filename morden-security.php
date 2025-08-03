@@ -41,6 +41,12 @@ require_once MS_PLUGIN_PATH . 'src/Autoloader/Autoloader.php';
 MordenSecurity\Autoloader\Autoloader::register();
 MordenSecurity\Autoloader\Autoloader::preloadCriticalClasses();
 
+// Initialize Security Core early
+if (class_exists('MordenSecurity\Core\SecurityCore')) {
+    $securityCore = new MordenSecurity\Core\SecurityCore();
+    $securityCore->initialize();
+}
+
 use MordenSecurity\Core\SecurityCore;
 use MordenSecurity\Core\LoggerSQLite;
 use MordenSecurity\Utils\IPUtils;
@@ -48,6 +54,8 @@ use MordenSecurity\Utils\GitHubUpdater;
 use MordenSecurity\Modules\IPManagement\IPBlocker;
 use MordenSecurity\Admin\AdminController;
 use MordenSecurity\API\RestAPI;
+use MordenSecurity\Modules\WAF\RulesetManager;
+
 
 class MordenSecurityPlugin
 {
@@ -102,6 +110,9 @@ class MordenSecurityPlugin
                 $this->adminController = new AdminController();
             }
 
+            // WordPressHardening is now autoloaded and initialized via its constructor
+            // and admin_init hook, so no direct instantiation here.
+
             $this->initialized = true;
 
         } catch (Exception $e) {
@@ -128,6 +139,8 @@ class MordenSecurityPlugin
 
         try {
             $logger = new LoggerSQLite();
+            $rulesetManager = new RulesetManager($logger);
+            $rulesetManager->syncRulesetsToDatabase();
         } catch (Exception $e) {
             add_option('ms_activation_error', $e->getMessage());
         }

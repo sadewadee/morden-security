@@ -9,6 +9,7 @@ if (!defined('ABSPATH')) {
 class Autoloader
 {
     /**
+     *
      * Register the autoloader
      *
      * @return void
@@ -19,6 +20,7 @@ class Autoloader
     }
 
     /**
+     *
      * Autoload classes following PSR-4 standard
      *
      * @param string $class The fully-qualified class name
@@ -54,6 +56,7 @@ class Autoloader
     }
 
     /**
+     *
      * Unregister the autoloader
      *
      * @return bool True on success, false on failure
@@ -64,6 +67,7 @@ class Autoloader
     }
 
     /**
+     *
      * Check if a class can be autoloaded
      *
      * @param string $class The fully-qualified class name
@@ -86,6 +90,7 @@ class Autoloader
     }
 
     /**
+     *
      * Get all loadable classes in the namespace
      *
      * @return array Array of class names that can be autoloaded
@@ -116,6 +121,7 @@ class Autoloader
     }
 
     /**
+     *
      * Preload critical classes for performance
      *
      * @return void
@@ -130,7 +136,8 @@ class Autoloader
             'MordenSecurity\\Utils\\IPUtils',
             'MordenSecurity\\Utils\\Validation',
             'MordenSecurity\\API\\RestAPI',
-            'MordenSecurity\\API\\Endpoints\\BotDetectionEndpoint'
+            'MordenSecurity\\API\\Endpoints\\BotDetectionEndpoint',
+            'MordenSecurity\\Modules\\Hardening\\WordPressHardening',
         ];
 
         foreach ($criticalClasses as $class) {
@@ -141,6 +148,7 @@ class Autoloader
     }
 
     /**
+     *
      * Debug method to trace autoload attempts
      *
      * @param string $class The class being loaded
@@ -152,9 +160,9 @@ class Autoloader
             error_log("MS Autoloader: Attempting to load class: {$class}");
 
             if (self::canAutoload($class)) {
-                error_log("MS Autoloader: ✓ Can load {$class}");
+                error_log("MS Autoloader: \u2713 Can load {$class}");
             } else {
-                error_log("MS Autoloader: ✗ Cannot load {$class}");
+                error_log("MS Autoloader: \u2717 Cannot load {$class}");
             }
         }
     }

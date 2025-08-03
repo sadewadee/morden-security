@@ -53,7 +53,7 @@ vendor/bin/phpcbf –standard=WordPress src/
 
 ### Commit Messages
 Use conventional commit messages:
-feat: add new bot detection algorithm fix: resolve IP blocking issue docs: update installation guide test: add unit tests for firewall
+feat: add new bot detection algorithmfix: resolve IP blocking issuedocs: update installation guidetest: add unit tests for firewall
 
 
 ## Security Vulnerabilities
