@@ -1,0 +1,71 @@
+.ms-integrity-check-page .tab-content {
+    display: none;
+    margin-top: 15px;
+    padding: 20px;
+    background-color: #fff;
+    border: 1px solid #ccd0d4;
+}
+
+.ms-integrity-check-page .tab-content.active {
+    display: block;
+}
+
+.ms-scanner-main {
+    display: flex;
+    flex-direction: column;
+}
+
+.ms-scan-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 20px;
+}
+
+.ms-summary-item .label {
+    display: block;
+    color: #555;
+    font-size: 13px;
+}
+
+.ms-summary-item .value {
+    font-size: 1.5em;
+    font-weight: 600;
+}
+
+.ms-scan-status {
+    display: flex;
+    justify-content: space-around;
+    text-align: center;
+    background: #f9f9f9;
+    padding: 20px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.ms-scan-status span {
+    font-size: 2em;
+    font-weight: bold;
+    display: block;
+}
+
+.ms-scan-status small {
+    color: #777;
+}
+
+.ms-scan-results {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.ms-scan-controls {
+    text-align: center;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.ms-scan-controls .button {
+    margin: 0 10px;
+}

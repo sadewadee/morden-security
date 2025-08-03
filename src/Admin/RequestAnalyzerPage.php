@@ -43,17 +43,17 @@ class RequestAnalyzerPage
         $recentEvents = $this->logger->getRecentEvents(100);
         ?>
         <div class="ms-live-traffic">
-            <h3><?php _e('Live Traffic', 'morden-security'); ?></h3>
+            <h3><?php _e('Traffic Monitor', 'morden-security'); ?></h3>
             <table class="wp-list-table widefat fixed striped">
                 <thead>
                     <tr>
                         <th><?php _e('Date', 'morden-security'); ?></th>
-                        <th><?php _e('Username', 'morden-security'); ?></th>
+                        <th><?php _e('Method', 'morden-security'); ?></th>
                         <th><?php _e('URI', 'morden-security'); ?></th>
                         <th><?php _e('IP', 'morden-security'); ?></th>
-                        <th><?php _e('Hostname', 'morden-security'); ?></th>
                         <th><?php _e('User Agent', 'morden-security'); ?></th>
-                        <th><?php _e('Description', 'morden-security'); ?></th>
+                        <th><?php _e('Referrer', 'morden-security'); ?></th>
+                        <th><?php _e('Processing Time', 'morden-security'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -65,36 +65,18 @@ class RequestAnalyzerPage
                         <?php foreach ($recentEvents as $event) : ?>
                             <?php
                             $context = json_decode($event['context'] ?? '', true);
-                            $username = $context['username'] ?? '-';
-                            $ip = $event['ip_address'];
-                            $hostname = gethostbyaddr($ip);
-                            $eventLabel = SecurityEventTypes::getLabel($event['event_type']);
                             $requestMethod = $context['request_method'] ?? '-';
-                            $httpCode = $context['http_code'] ?? '-';
-                            $country = $event['country_code'] ? esc_html($event['country_code']) : 'N/A';
-                            $threatScore = $event['threat_score'] ?? 0;
-
-                            $eventName = !empty($event['rule_name']) ? esc_html($event['rule_name']) : esc_html($eventLabel);
-                            $ruleId = !empty($event['rule_identifier']) ? ' (' . esc_html($event['rule_identifier']) . ')' : '';
-
-                            $description = sprintf(
-                                "<strong>%s%s</strong><br>URL: %s<br>Method: %s<br>Country: %s<br>Score: %d",
-                                $eventName,
-                                $ruleId,
-                                esc_html($event['request_uri']),
-                                esc_html($requestMethod),
-                                $country,
-                                $threatScore
-                            );
+                            $referrer = $context['referrer'] ?? '-';
+                            $processingTime = isset($context['processing_time']) ? number_format($context['processing_time'], 4) . 's' : '-';
                             ?>
                             <tr>
-                                <td><?php echo esc_html(date('Y-m-d H:i:s', $event['timestamp'])); ?></td>
-                                <td><?php echo esc_html($username); ?></td>
+                                <td><?php echo esc_html(date('Y-m-d H:i:s', strtotime($event['created_at']))); ?></td>
+                                <td><?php echo esc_html($requestMethod); ?></td>
                                 <td><?php echo esc_html($event['request_uri']); ?></td>
-                                <td><code><?php echo esc_html($ip); ?></code></td>
-                                <td><?php echo esc_html($hostname); ?></td>
+                                <td><code><?php echo esc_html($event['ip_address']); ?></code></td>
                                 <td><?php echo esc_html($event['user_agent']); ?></td>
-                                <td><?php echo $description; ?></td>
+                                <td><?php echo esc_html($referrer); ?></td>
+                                <td><?php echo esc_html($processingTime); ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>

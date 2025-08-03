@@ -372,6 +372,7 @@ class LoggerSQLite
         $this->createBotWhitelistTable();
         $this->createWafRulesTable();
         $this->createFailedAttemptsTable();
+        $this->createScannerTables();
         $this->createIndexes();
     }
 
@@ -469,6 +470,34 @@ class LoggerSQLite
             )
         ';
         $this->database->exec($sql);
+    }
+
+    private function createTable(string $tableName, string $columnsSql): void
+    {
+        $sql = "CREATE TABLE IF NOT EXISTS {$tableName} ({$columnsSql})";
+        $this->database->exec($sql);
+    }
+
+    private function createScannerTables(): void
+    {
+        $this->createTable('ms_scanner_files', "
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_path TEXT NOT NULL UNIQUE,
+            file_hash TEXT NOT NULL,
+            last_scanned INTEGER,
+            status TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ");
+
+        $this->createTable('ms_scanner_log', "
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scan_id INTEGER,
+            file_path TEXT,
+            issue_type TEXT,
+            details TEXT,
+            status TEXT,
+            timestamp INTEGER
+        ");
     }
 
     public function recordFailedAttempt(string $ip): void

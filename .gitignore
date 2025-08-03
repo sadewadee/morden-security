@@ -1,0 +1,33 @@
+.git/
+# Composer
+vendor/
+composer.lock
+
+# Node
+node_modules/
+package-lock.json
+
+# WordPress
+wp-content/uploads/
+wp-content/upgrade/
+wp-content/backup-db/
+*.log
+
+# Morden Security
+uploads/
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Development
+.env*
+.vscode/
+.phpunit.result.cache
+coverage.xml
+tests/
+.gemini/
+.distignore
+phpunit.xml
+rotation.cline

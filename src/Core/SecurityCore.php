@@ -26,6 +26,7 @@ class SecurityCore {
     private $geoDetection;
     private $loginProtection;
     private $initialized = false;
+    private $requestIntercepted = false;
 
     public function __construct() {
         $this->logger = new LoggerSQLite();
@@ -75,9 +76,10 @@ class SecurityCore {
     }
 
     public function interceptRequest(): ?array {
-        if (!$this->isSecurityEnabled()) {
+        if ($this->requestIntercepted || !$this->isSecurityEnabled()) {
             return null;
         }
+        $this->requestIntercepted = true;
 
         $ipAddress = IPUtils::getRealClientIP();
 

@@ -4,6 +4,7 @@ namespace MordenSecurity\Admin;
 
 use MordenSecurity\Core\LoggerSQLite;
 use MordenSecurity\Core\SecurityCore;
+use MordenSecurity\Admin\IntegrityCheckPage;
 
 class AdminController
 {
@@ -11,6 +12,7 @@ class AdminController
     private RequestAnalyzerPage $requestAnalyzerPage;
     private BotDetectionPage $botDetectionPage;
     private CountryManagementPage $countryManagementPage;
+    private IntegrityCheckPage $integrityCheckPage;
 
     public function __construct() {
         $logger = new LoggerSQLite();
@@ -19,6 +21,7 @@ class AdminController
         $this->requestAnalyzerPage = new RequestAnalyzerPage($logger);
         $this->botDetectionPage = new BotDetectionPage($logger);
         $this->countryManagementPage = new CountryManagementPage($logger);
+        $this->integrityCheckPage = new IntegrityCheckPage();
 
         add_action('admin_menu', [$this, 'addAdminMenu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueueAdminScripts']);
@@ -70,19 +73,34 @@ class AdminController
             'ms-countries',
             [$this->countryManagementPage, 'render']
         );
+
+        add_submenu_page(
+            'morden-security',
+            __('Integrity Check', 'morden-security'),
+            __('Integrity Check', 'morden-security'),
+            'manage_options',
+            'ms-integrity-check',
+            [$this->integrityCheckPage, 'render']
+        );
     }
 
     public function enqueueAdminScripts($hook): void {
-        if (strpos($hook, 'morden-security') === false) {
-            return;
+        // General admin styles and scripts
+        if (strpos($hook, 'morden-security') !== false) {
+            wp_enqueue_style('morden-security-admin', MS_PLUGIN_URL . 'assets/css/admin-dashboard.css', [], MS_PLUGIN_VERSION);
+            wp_enqueue_script('morden-security-admin', MS_PLUGIN_URL . 'assets/js/admin-dashboard.js', ['jquery'], MS_PLUGIN_VERSION, true);
+
+            wp_localize_script('morden-security-admin', 'msAdmin', [
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('ms_ajax_nonce'),
+                'restUrl' => rest_url('morden-security/v1/')
+            ]);
         }
 
-        wp_enqueue_style('morden-security-admin', MS_PLUGIN_URL . 'assets/css/admin-dashboard.css', [], MS_PLUGIN_VERSION);
-        wp_enqueue_script('morden-security-admin', MS_PLUGIN_URL . 'assets/js/admin-dashboard.js', ['jquery'], MS_PLUGIN_VERSION, true);
-
-        wp_localize_script('morden-security-admin', 'msAdmin', [
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('ms_ajax_nonce')
-        ]);
+        // Specific scripts for the Integrity Check page
+        if ($hook === 'morden-security_page_ms-integrity-check') {
+            wp_enqueue_style('morden-security-integrity-check', MS_PLUGIN_URL . 'assets/css/integrity-check.css', [], MS_PLUGIN_VERSION);
+            wp_enqueue_script('morden-security-integrity-check', MS_PLUGIN_URL . 'assets/js/integrity-check.js', ['jquery'], MS_PLUGIN_VERSION, true);
+        }
     }
 }

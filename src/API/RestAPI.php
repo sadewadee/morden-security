@@ -203,9 +203,18 @@ class RestAPI
         ], 200);
     }
 
-    public function checkPermissions(): bool
+    public function checkPermissions(WP_REST_Request $request): bool
     {
-        return current_user_can('manage_options');
+        if (!current_user_can('manage_options')) {
+            return false;
+        }
+
+        $nonce = $request->get_header('X-WP-Nonce');
+        if (!wp_verify_nonce($nonce, 'wp_rest')) {
+            return false;
+        }
+
+        return true;
     }
 
     public function checkPublicPermissions(): bool

@@ -16,15 +16,18 @@
             $(document).on('click', '.ms-view-logs', e => this.handleViewLogs(e));
             $(document).on('click', '#bulk-unblock', e => this.handleBulkUnblock(e));
             $(document).on('change', '#cb-select-all', e => this.handleSelectAll(e));
+            $(document).on('click', '.ms-remove-whitelist', e => this.handleRemoveWhitelist(e));
+            $(document).on('click', '#ms-start-scan', e => this.handleStartScan(e));
         },
 
         handleTabSwitching() {
-            $('.nav-tab-wrapper a').on('click', function(e) {
+            $('.nav-tab-wrapper').on('click', 'a', function(e) {
                 e.preventDefault();
                 const target = $(this).attr('href');
-                $('.nav-tab').removeClass('nav-tab-active');
+                const $wrapper = $(this).closest('.nav-tab-wrapper');
+                $wrapper.find('.nav-tab').removeClass('nav-tab-active');
                 $(this).addClass('nav-tab-active');
-                $('.tab-content').removeClass('active');
+                $wrapper.nextAll('.tab-content, .tab-pane').removeClass('active');
                 $(target).addClass('active');
             });
         },
@@ -333,6 +336,43 @@
 
         formatNumber(number) {
             return new Intl.NumberFormat().format(number);
+        },
+
+        handleRemoveWhitelist(e) {
+            e.preventDefault();
+            const $button = $(e.currentTarget);
+            const ipAddress = $button.data('ip');
+            if (!confirm('Are you sure you want to remove this IP from the whitelist?')) {
+                return;
+            }
+            $button.prop('disabled', true).text('Removing...');
+            $.ajax({
+                url: `${msAdmin.restUrl}ip-rules/${ipAddress}`,
+                type: 'DELETE',
+                beforeSend: function(xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', msAdmin.nonce);
+                },
+                success: (response) => {
+                    if (response.success) {
+                        $button.closest('tr').fadeOut(300, function() {
+                            $(this).remove();
+                        });
+                        this.showNotice('success', response.data);
+                    } else {
+                        this.showNotice('error', response.data);
+                        $button.prop('disabled', false).text('Remove');
+                    }
+                },
+                error: () => {
+                    this.showNotice('error', 'An error occurred.');
+                    $button.prop('disabled', false).text('Remove');
+                }
+            });
+        },
+
+        handleStartScan(e) {
+            e.preventDefault();
+            this.showNotice('info', 'Scanner feature is currently under development.');
         }
     };
 

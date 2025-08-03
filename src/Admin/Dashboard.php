@@ -36,9 +36,8 @@ class Dashboard {
 
             <div class="nav-tab-wrapper">
                 <a href="#dashboard" class="nav-tab nav-tab-active"><?php _e('Dashboard', 'morden-security'); ?></a>
-                <a href="#activities" class="nav-tab"><?php _e('Activities', 'morden-security'); ?></a>
-                <a href="#session" class="nav-tab"><?php _e('Session', 'morden-security'); ?></a>
-                <a href="#lockout" class="nav-tab"><?php _e('Lockout', 'morden-security'); ?></a>
+                <a href="#activity-log" class="nav-tab"><?php _e('Activity Log', 'morden-security'); ?></a>
+                <a href="#lockouts" class="nav-tab"><?php _e('Lockouts', 'morden-security'); ?></a>
                 <a href="#settings" class="nav-tab"><?php _e('Settings', 'morden-security'); ?></a>
                 <a href="#access-list" class="nav-tab"><?php _e('Access List', 'morden-security'); ?></a>
                 <a href="#hardening" class="nav-tab"><?php _e('Hardening', 'morden-security'); ?></a>
@@ -82,15 +81,11 @@ class Dashboard {
 
 
 
-            <div id="activities" class="tab-content">
+            <div id="activity-log" class="tab-content">
                 <?php $this->renderActivitiesTab($recentEvents); ?>
             </div>
 
-            <div id="session" class="tab-content">
-                <?php $this->renderActiveSessionsTab(); ?>
-            </div>
-
-            <div id="lockout" class="tab-content">
+            <div id="lockouts" class="tab-content">
                 <?php $this->renderBlockedIPsTab($blockedIPs); ?>
             </div>
 
@@ -1032,7 +1027,7 @@ class Dashboard {
                 <thead>
                     <tr>
                         <th><?php _e('Date', 'morden-security'); ?></th>
-                        <th><?php _e('Category', 'morden-security'); ?></th>
+                        <th><?php _e('Event', 'morden-security'); ?></th>
                         <th><?php _e('Username', 'morden-security'); ?></th>
                         <th><?php _e('IP Address', 'morden-security'); ?></th>
                         <th><?php _e('Country', 'morden-security'); ?></th>
@@ -1050,16 +1045,24 @@ class Dashboard {
                             <?php
                             $context = json_decode($event['context'] ?? '', true);
                             $username = $context['username'] ?? 'N/A';
-                            $category = SecurityEventTypes::getCategoryForEvent($event['event_type']);
+                            $description = sprintf(
+                                'Path: %s<br>Reason: %s<br>Action: %s',
+                                esc_html($event['request_uri']),
+                                esc_html($event['message']),
+                                esc_html($event['action_taken'])
+                            );
                             ?>
                             <tr>
                                 <td><?php echo esc_html(date('Y-m-d H:i:s', strtotime($event['created_at']))); ?></td>
-                                <td><?php echo esc_html(ucfirst($category)); ?></td>
+                                <td><?php echo esc_html(SecurityEventTypes::getLabel($event['event_type'])); ?></td>
                                 <td><?php echo esc_html($username); ?></td>
                                 <td><code><?php echo esc_html($event['ip_address']); ?></code></td>
                                 <td><?php echo esc_html($event['country_code'] ?? 'N/A'); ?></td>
-                                <td><?php echo esc_html($event['description']); ?></td>
-                                <td><?php echo esc_html($event['action_taken']); ?></td>
+                                <td><?php echo $description; ?></td>
+                                <td>
+                                    <button class="button button-small ms-block-ip" data-ip="<?php echo esc_attr($event['ip_address']); ?>"><?php _e('Block', 'morden-security'); ?></button>
+                                    <button class="button button-small ms-unblock-ip" data-ip="<?php echo esc_attr($event['ip_address']); ?>"><?php _e('Unblock', 'morden-security'); ?></button>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
