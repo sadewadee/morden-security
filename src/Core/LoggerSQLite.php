@@ -17,6 +17,7 @@ class LoggerSQLite
     private string $botWhitelistTable = 'ms_bot_whitelist';
     private string $wafRulesTable = 'ms_waf_rules';
     private string $failedAttemptsTable = 'ms_failed_attempts';
+    private string $scansTable = 'ms_scans';
     private string $dbPath;
 
     public function __construct()
@@ -373,6 +374,8 @@ class LoggerSQLite
         $this->createWafRulesTable();
         $this->createFailedAttemptsTable();
         $this->createScannerTables();
+        $this->createFileMetadataTable();
+        $this->createScansTable();
         $this->createIndexes();
     }
 
@@ -482,10 +485,13 @@ class LoggerSQLite
     {
         $this->createTable('ms_scanner_files', "
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            file_path TEXT NOT NULL UNIQUE,
+            file_name_hash TEXT NOT NULL UNIQUE,
+            file_path TEXT NOT NULL,
             file_hash TEXT NOT NULL,
+            file_hash_repo TEXT,
+            hash_match INTEGER,
             last_scanned INTEGER,
-            status TEXT,
+            status INTEGER,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         ");
 
@@ -497,6 +503,18 @@ class LoggerSQLite
             details TEXT,
             status TEXT,
             timestamp INTEGER
+        ");
+    }
+
+    private function createFileMetadataTable(): void
+    {
+        $this->createTable('ms_file_metadata', "
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_path TEXT NOT NULL UNIQUE,
+            file_hash TEXT NOT NULL,
+            file_size INTEGER NOT NULL,
+            last_modified INTEGER NOT NULL,
+            last_scanned INTEGER NOT NULL
         ");
     }
 
@@ -520,6 +538,33 @@ class LoggerSQLite
         $stmt->bindValue(':ip', $ip, SQLITE3_TEXT);
         $result = $stmt->execute();
         return $result->fetchArray(SQLITE3_ASSOC) ?: null;
+    }
+
+    public function getFileMetadata(string $filePath): ?array
+    {
+        $stmt = $this->database->prepare('SELECT * FROM ms_file_metadata WHERE file_path = :file_path');
+        $stmt->bindValue(':file_path', $filePath, SQLITE3_TEXT);
+        $result = $stmt->execute();
+        return $result->fetchArray(SQLITE3_ASSOC) ?: null;
+    }
+
+    public function updateFileMetadata(string $filePath, string $hash, int $size, int $modifiedTime): void
+    {
+        $stmt = $this->database->prepare('
+            INSERT INTO ms_file_metadata (file_path, file_hash, file_size, last_modified, last_scanned)
+            VALUES (:path, :hash, :size, :modified, :scanned)
+            ON CONFLICT(file_path) DO UPDATE SET
+                file_hash = excluded.file_hash,
+                file_size = excluded.file_size,
+                last_modified = excluded.last_modified,
+                last_scanned = excluded.last_scanned
+        ');
+        $stmt->bindValue(':path', $filePath, SQLITE3_TEXT);
+        $stmt->bindValue(':hash', $hash, SQLITE3_TEXT);
+        $stmt->bindValue(':size', $size, SQLITE3_INTEGER);
+        $stmt->bindValue(':modified', $modifiedTime, SQLITE3_INTEGER);
+        $stmt->bindValue(':scanned', time(), SQLITE3_INTEGER);
+        $stmt->execute();
     }
 
     public function clearFailedAttempts(string $ip): void
@@ -602,7 +647,9 @@ class LoggerSQLite
             'CREATE INDEX IF NOT EXISTS idx_bot_whitelist_ua ON ' . $this->botWhitelistTable . ' (user_agent_pattern)',
             'CREATE INDEX IF NOT EXISTS idx_waf_rules_rule_id ON ' . $this->wafRulesTable . ' (rule_id)',
             'CREATE INDEX IF NOT EXISTS idx_waf_rules_is_active ON ' . $this->wafRulesTable . ' (is_active)',
-            'CREATE INDEX IF NOT EXISTS idx_failed_attempts_ip ON ' . $this->failedAttemptsTable . ' (ip)'
+            'CREATE INDEX IF NOT EXISTS idx_failed_attempts_ip ON ' . $this->failedAttemptsTable . ' (ip)',
+            'CREATE INDEX IF NOT EXISTS idx_file_metadata_path ON ms_file_metadata (file_path)',
+            'CREATE INDEX IF NOT EXISTS idx_scanner_log_scan_id ON ms_scanner_log (scan_id)'
         ];
 
         foreach ($indexes as $index) {
@@ -707,6 +754,118 @@ class LoggerSQLite
             error_log('MS Logger Error: ' . $e->getMessage());
             return [];
         }
+    }
+
+    private function createScansTable(): void
+    {
+        $this->createTable($this->scansTable, "
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            start_time INTEGER NOT NULL,
+            end_time INTEGER,
+            status TEXT NOT NULL,
+            total_files INTEGER DEFAULT 0,
+            files_scanned INTEGER DEFAULT 0,
+            issues_found INTEGER DEFAULT 0,
+            summary TEXT
+        ");
+    }
+
+    public function startNewScan(): int
+    {
+        $stmt = $this->database->prepare('INSERT INTO ' . $this->scansTable . ' (start_time, status) VALUES (?, ?)');
+        $stmt->bindValue(1, time(), SQLITE3_INTEGER);
+        $stmt->bindValue(2, 'running', SQLITE3_TEXT);
+        $stmt->execute();
+        return $this->database->lastInsertRowID();
+    }
+
+    public function logScanIssue(int $scanId, array $issueData): void
+    {
+        $stmt = $this->database->prepare(
+            'INSERT INTO ms_scanner_log (scan_id, file_path, issue_type, details, status, timestamp) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->bindValue(1, $scanId, SQLITE3_INTEGER);
+        $stmt->bindValue(2, $issueData['file_path'] ?? '', SQLITE3_TEXT);
+        $stmt->bindValue(3, $issueData['issue_type'] ?? '', SQLITE3_TEXT);
+        $stmt->bindValue(4, $issueData['details'] ?? '', SQLITE3_TEXT);
+        $stmt->bindValue(5, 'new', SQLITE3_TEXT);
+        $stmt->bindValue(6, time(), SQLITE3_INTEGER);
+        $stmt->execute();
+    }
+
+    public function updateScanProgress(int $scanId, int $filesScanned, int $totalFiles, int $issuesFound): void
+    {
+        $stmt = $this->database->prepare(
+            'UPDATE ' . $this->scansTable . ' SET files_scanned = ?, total_files = ?, issues_found = ? WHERE id = ?'
+        );
+        $stmt->bindValue(1, $filesScanned, SQLITE3_INTEGER);
+        $stmt->bindValue(2, $totalFiles, SQLITE3_INTEGER);
+        $stmt->bindValue(3, $issuesFound, SQLITE3_INTEGER);
+        $stmt->bindValue(4, $scanId, SQLITE3_INTEGER);
+        $stmt->execute();
+    }
+
+    public function finishScan(int $scanId, int $issuesFound, array $summary): void
+    {
+        $stmt = $this->database->prepare(
+            'UPDATE ' . $this->scansTable . ' SET end_time = ?, status = ?, issues_found = ?, summary = ? WHERE id = ?'
+        );
+        $stmt->bindValue(1, time(), SQLITE3_INTEGER);
+        $stmt->bindValue(2, 'finished', SQLITE3_TEXT);
+        $stmt->bindValue(3, $issuesFound, SQLITE3_INTEGER);
+        $stmt->bindValue(4, json_encode($summary), SQLITE3_TEXT);
+        $stmt->bindValue(5, $scanId, SQLITE3_INTEGER);
+        $stmt->execute();
+    }
+
+    public function getLatestScanResults(): array
+    {
+        $stmt = $this->database->prepare("
+            SELECT
+                s.id,
+                s.summary,
+                s.start_time,
+                s.end_time,
+                l.file_path,
+                l.issue_type,
+                l.details
+            FROM {$this->scansTable} s
+            LEFT JOIN ms_scanner_log l ON s.id = l.scan_id
+            WHERE s.id = (SELECT MAX(id) FROM {$this->scansTable} WHERE status = 'finished')
+            ORDER BY l.id ASC
+        ");
+
+        if (!$stmt) {
+            return ['summary' => null, 'issues' => []];
+        }
+
+        $result = $stmt->execute();
+        $scanData = [
+            'summary' => null,
+            'issues' => [],
+            'scan_start' => null,
+            'scan_end' => null,
+        ];
+        $firstRow = true;
+
+        while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+            if ($firstRow) {
+                $scanData['summary'] = json_decode($row['summary'], true);
+                $scanData['scan_start'] = $row['start_time'];
+                $scanData['scan_end'] = $row['end_time'];
+                $firstRow = false;
+            }
+            if ($row['file_path']) { // Ensure we don't add an empty issue if there are none
+                $scanData['issues'][] = [
+                    'file_path' => $row['file_path'],
+                    'issue_type' => $row['issue_type'],
+                    'details' => $row['details'],
+                ];
+            }
+        }
+        $stmt->close();
+
+        return $scanData;
     }
 
     public function getBotDetectionStats(): array

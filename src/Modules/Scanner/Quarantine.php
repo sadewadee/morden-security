@@ -8,31 +8,82 @@ if (!defined('ABSPATH')) {
 
 class Quarantine
 {
-    private $quarantineDir;
+    private string $quarantine_dir;
 
     public function __construct()
     {
-        $this->quarantineDir = WP_CONTENT_DIR . '/ms-quarantine';
-        if (!file_exists($this->quarantineDir)) {
-            mkdir($this->quarantineDir, 0755, true);
+        $upload_dir = wp_upload_dir();
+        $this->quarantine_dir = $upload_dir['basedir'] . '/morden-security-quarantine/';
+        if (!file_exists($this->quarantine_dir)) {
+            wp_mkdir_p($this->quarantine_dir);
+            // Add a .htaccess file for security
+            $htaccess_content = "Options -Indexes\ndeny from all";
+            file_put_contents($this->quarantine_dir . '.htaccess', $htaccess_content);
         }
     }
 
-    public function quarantineFile(string $filePath): bool
+    public function quarantineFile(string $file_path): bool
     {
-        // Logic to move a file to quarantine
+        $full_path = ABSPATH . $file_path;
+        if (!file_exists($full_path) || is_dir($full_path)) {
+            return false;
+        }
+
+        $destination = $this->quarantine_dir . basename($file_path) . '.' . time();
+
+        // Use rename to move the file
+        if (rename($full_path, $destination)) {
+            // You might want to log this action
+            return true;
+        }
+
         return false;
     }
 
-    public function restoreFile(string $fileName): bool
+    public function restoreFile(string $quarantined_file, string $original_path): bool
     {
-        // Logic to restore a file from quarantine
+        $quarantined_path = $this->quarantine_dir . $quarantined_file;
+        $destination_path = ABSPATH . $original_path;
+
+        if (!file_exists($quarantined_path)) {
+            return false;
+        }
+
+        // Ensure the destination directory exists
+        $destination_dir = dirname($destination_path);
+        if (!file_exists($destination_dir)) {
+            wp_mkdir_p($destination_dir);
+        }
+
+        if (rename($quarantined_path, $destination_path)) {
+            return true;
+        }
+
         return false;
     }
 
-    public function deleteFile(string $fileName): bool
+    public function deleteQuarantinedFile(string $quarantined_file): bool
     {
-        // Logic to delete a file from quarantine
+        $quarantined_path = $this->quarantine_dir . $quarantined_file;
+        if (file_exists($quarantined_path) && is_writable($quarantined_path)) {
+            return unlink($quarantined_path);
+        }
         return false;
+    }
+
+    public function getQuarantinedFiles(): array
+    {
+        $files = [];
+        $items = scandir($this->quarantine_dir);
+        foreach ($items as $item) {
+            if ($item !== '.' && $item !== '..' && $item !== '.htaccess') {
+                $files[] = [
+                    'file_name' => $item,
+                    'size' => filesize($this->quarantine_dir . $item),
+                    'date' => filemtime($this->quarantine_dir . $item)
+                ];
+            }
+        }
+        return $files;
     }
 }

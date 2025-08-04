@@ -5,6 +5,7 @@ namespace MordenSecurity\Admin;
 use MordenSecurity\Core\LoggerSQLite;
 use MordenSecurity\Core\SecurityCore;
 use MordenSecurity\Admin\IntegrityCheckPage;
+use MordenSecurity\Admin\AntiSpamPage;
 
 class AdminController
 {
@@ -13,6 +14,7 @@ class AdminController
     private BotDetectionPage $botDetectionPage;
     private CountryManagementPage $countryManagementPage;
     private IntegrityCheckPage $integrityCheckPage;
+    private AntiSpamPage $antiSpamPage;
 
     public function __construct() {
         $logger = new LoggerSQLite();
@@ -22,9 +24,11 @@ class AdminController
         $this->botDetectionPage = new BotDetectionPage($logger);
         $this->countryManagementPage = new CountryManagementPage($logger);
         $this->integrityCheckPage = new IntegrityCheckPage();
+        $this->antiSpamPage = new AntiSpamPage();
 
         add_action('admin_menu', [$this, 'addAdminMenu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueueAdminScripts']);
+        add_action('admin_init', [$this, 'registerSettings']);
     }
 
     public function addAdminMenu(): void {
@@ -82,6 +86,15 @@ class AdminController
             'ms-integrity-check',
             [$this->integrityCheckPage, 'render']
         );
+
+        add_submenu_page(
+            'morden-security',
+            __('Anti Spam', 'morden-security'),
+            __('Anti Spam', 'morden-security'),
+            'manage_options',
+            'ms-anti-spam',
+            [$this->antiSpamPage, 'render']
+        );
     }
 
     public function enqueueAdminScripts($hook): void {
@@ -102,5 +115,28 @@ class AdminController
             wp_enqueue_style('morden-security-integrity-check', MS_PLUGIN_URL . 'assets/css/integrity-check.css', [], MS_PLUGIN_VERSION);
             wp_enqueue_script('morden-security-integrity-check', MS_PLUGIN_URL . 'assets/js/integrity-check.js', ['jquery'], MS_PLUGIN_VERSION, true);
         }
+
+        // Specific scripts for the Anti Spam page
+        if ($hook === 'morden-security_page_ms-anti-spam') {
+            wp_enqueue_script('morden-security-anti-spam', MS_PLUGIN_URL . 'assets/js/anti-spam.js', [], MS_PLUGIN_VERSION, true);
+        }
+    }
+
+    public function registerSettings(): void {
+        register_setting('ms_anti_spam_settings', 'ms_protect_registration');
+        register_setting('ms_anti_spam_settings', 'ms_protect_comment');
+        register_setting('ms_anti_spam_settings', 'ms_protect_other_forms');
+        register_setting('ms_anti_spam_settings', 'ms_disable_for_logged_in');
+        register_setting('ms_anti_spam_settings', 'ms_use_ip_whitelist');
+        register_setting('ms_anti_spam_settings', 'ms_exclude_locations');
+        register_setting('ms_anti_spam_settings', 'ms_exclude_headers');
+        register_setting('ms_anti_spam_settings', 'ms_spam_action');
+        register_setting('ms_anti_spam_settings', 'ms_trash_spam');
+        register_setting('ms_anti_spam_settings', 'ms_trash_days');
+        register_setting('ms_anti_spam_settings', 'ms_form_protection_service');
+        register_setting('ms_anti_spam_settings', 'ms_recaptcha_site_key');
+        register_setting('ms_anti_spam_settings', 'ms_recaptcha_secret_key');
+        register_setting('ms_anti_spam_settings', 'ms_turnstile_site_key');
+        register_setting('ms_anti_spam_settings', 'ms_turnstile_secret_key');
     }
 }

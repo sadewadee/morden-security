@@ -11,6 +11,7 @@ use MordenSecurity\Core\Firewall;
 use MordenSecurity\Core\GeoDetection;
 use MordenSecurity\Modules\IPManagement\BlockingEngine;
 use MordenSecurity\Modules\Login\LoginProtection;
+use MordenSecurity\Modules\AntiSpam\AntiSpamEngine;
 use MordenSecurity\Utils\IPUtils;
 
 if (!defined('ABSPATH')) {
@@ -25,6 +26,7 @@ class SecurityCore {
     private $autoIPBlocker;
     private $geoDetection;
     private $loginProtection;
+    private $antiSpamEngine;
     private $initialized = false;
     private $requestIntercepted = false;
 
@@ -42,6 +44,7 @@ class SecurityCore {
         $this->botDetection = new BotDetection($this->logger);
         $this->blockingEngine = new BlockingEngine($this->logger);
         $this->loginProtection = new LoginProtection($this->logger);
+        $this->antiSpamEngine = new AntiSpamEngine($this->logger);
     }
 
     public function getSecurityStatus(): array

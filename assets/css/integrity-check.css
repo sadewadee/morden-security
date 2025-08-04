@@ -1,9 +1,10 @@
+/* Integrity Check Page Specific Styles */
+.ms-integrity-check-page .nav-tab-wrapper {
+    margin-bottom: 20px;
+}
+
 .ms-integrity-check-page .tab-content {
     display: none;
-    margin-top: 15px;
-    padding: 20px;
-    background-color: #fff;
-    border: 1px solid #ccd0d4;
 }
 
 .ms-integrity-check-page .tab-content.active {
@@ -11,61 +12,226 @@
 }
 
 .ms-scanner-main {
-    display: flex;
-    flex-direction: column;
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    padding: 20px;
+    border-radius: 4px;
 }
 
 .ms-scan-summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
     gap: 20px;
     padding-bottom: 20px;
     border-bottom: 1px solid #eee;
     margin-bottom: 20px;
 }
 
+.ms-summary-item {
+    text-align: center;
+}
+
 .ms-summary-item .label {
     display: block;
+    font-size: 12px;
     color: #555;
-    font-size: 13px;
 }
 
 .ms-summary-item .value {
-    font-size: 1.5em;
+    display: block;
+    font-size: 20px;
     font-weight: 600;
+    color: #2271b1;
 }
 
 .ms-scan-status {
     display: flex;
     justify-content: space-around;
-    text-align: center;
-    background: #f9f9f9;
-    padding: 20px;
-    border-radius: 4px;
     margin-bottom: 20px;
+    text-align: center;
 }
 
 .ms-scan-status span {
-    font-size: 2em;
+    font-size: 24px;
     font-weight: bold;
-    display: block;
 }
 
 .ms-scan-status small {
-    color: #777;
+    display: block;
+    color: #666;
 }
 
-.ms-scan-results {
-    margin-bottom: 20px;
+#ms-progress-bar {
+    width: 100%;
+    background-color: #e0e0e0;
+    border-radius: 4px;
+    margin: 20px 0;
+    position: relative;
+    height: 28px;
+    overflow: hidden;
+}
+
+#ms-progress-bar-inner {
+    height: 100%;
+    width: 0;
+    background-color: #4caf50;
+    transition: width 0.4s ease-in-out;
+}
+
+#ms-progress-percentage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    font-weight: bold;
+    text-shadow: 1px 1px 1px rgba(0,0,0,0.2);
+}
+
+.ms-scan-results-summary {
+    margin-top: 20px;
+}
+
+.ms-scan-ok {
     text-align: center;
+    padding: 40px;
+    background-color: #f0f8ff;
+    border: 1px solid #d4edda;
+    border-radius: 4px;
 }
 
-.ms-scan-controls {
-    text-align: center;
-    padding-top: 20px;
-    border-top: 1px solid #eee;
+.ms-scan-ok .dashicons {
+    font-size: 50px;
+    width: 50px;
+    height: 50px;
+    color: #28a745;
 }
 
-.ms-scan-controls .button {
-    margin: 0 10px;
+.ms-summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-bottom: none;
+    background: #f9f9f9;
+}
+
+.ms-summary-row:last-child {
+    border-bottom: 1px solid #ddd;
+}
+
+.ms-summary-row.has-issues {
+    cursor: pointer;
+}
+
+.ms-summary-name {
+    font-weight: bold;
+}
+
+.ms-status-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    color: #fff;
+    font-weight: bold;
+}
+
+.ms-status-badge.verified {
+    background-color: #28a745;
+}
+
+.ms-status-badge.issues-found {
+    background-color: #dc3545;
+}
+
+.ms-status-badge.no-data {
+    background-color: #6c757d;
+}
+
+.ms-issue-details-container {
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-top: none;
+    background: #fff;
+}
+
+.ms-error {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+/* Diff Modal */
+.ms-diff-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 100000;
+    display: none;
+}
+
+.ms-diff-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    max-width: 900px;
+    background: #fff;
+    z-index: 100001;
+    display: none;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+}
+
+.ms-diff-modal-header {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ms-diff-modal-header h3 {
+    margin: 0;
+}
+
+.ms-diff-modal-close {
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-size: 24px;
+    padding: 0;
+}
+
+.ms-diff-modal-body {
+    padding: 15px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.diff table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.diff th {
+    background: #f1f1f1;
+}
+
+.diff td {
+    padding: 5px;
+    font-family: monospace;
+    font-size: 12px;
+    vertical-align: top;
+}
+
+.diff .diff-deletedline {
+    background: #ffcdd2;
+}
+
+.diff .diff-addedline {
+    background: #d4edda;
 }
